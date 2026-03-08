@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Admin Panel{% endblock %}
+{% block page_class %}wide{% endblock %}
+{% block content %}
+
+<div class="page-hd">
+  <h1>Admin Panel</h1>
+  <p>School management dashboard</p>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card"><div class="stat-big">{{ stats.users }}</div><div class="stat-lbl">Users</div></div>
+  <div class="stat-card"><div class="stat-big">{{ stats.posts }}</div><div class="stat-lbl">Posts</div></div>
+  <div class="stat-card"><div class="stat-big" style="color:var(--red)">{{ stats.flagged }}</div><div class="stat-lbl">Flagged</div></div>
+  <div class="stat-card"><div class="stat-big" style="color:var(--ink2)">{{ stats.anon }}</div><div class="stat-lbl">Anon Posts</div></div>
+  <div class="stat-card"><div class="stat-big" style="color:var(--navy-l)">{{ stats.messages }}</div><div class="stat-lbl">Messages</div></div>
+  <div class="stat-card"><div class="stat-big" style="color:var(--lime-d)">{{ stats.follows }}</div><div class="stat-lbl">Follows</div></div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="users"   onclick="switchTab('users')">Users ({{ stats.users }})</button>
+  <button class="tab-btn"        data-tab="flagged" onclick="switchTab('flagged')">Flagged ({{ stats.flagged }})</button>
+  {% if cu.role == 'super_admin' %}
+  <button class="tab-btn"        data-tab="create"  onclick="switchTab('create')">Create User</button>
+  {% endif %}
+</div>
+
+<!-- USERS -->
+<div class="tab-pane active" id="tab-users">
+  <div class="card" style="overflow-x:auto">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Role</th>
+          <th>Joined</th>
+          {% if cu.role == 'super_admin' %}<th>Actions</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+      {% for u in users %}
+      <tr>
+        <td>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="av av-sm">
+              {% if u.avatar %}<img src="{{ url_for('serve_media', filename=u.avatar) }}" alt="">
+              {% else %}{{ u.name[0].upper() }}{% endif %}
+            </div>
+            <div>
+              <a href="{{ url_for('profile', username=u.username) }}" style="font-weight:600;color:var(--ink)">{{ u.name }}</a>
+              <div style="font-size:11px;color:var(--ink3)">@{{ u.username }}</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="role-tag rt-{{ u.role }}">{{ ROLE_LABELS.get(u.role, u.role) }}</span></td>
+        <td style="color:var(--ink2);font-size:12px">{{ u.created_at[:10] if u.created_at else '—' }}</td>
+        {% if cu.role == 'super_admin' %}
+        <td>
+          {% if u.role != 'super_admin' %}
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <form method="POST" action="{{ url_for('admin_change_role', uid=u.id) }}" style="display:flex;gap:5px;align-items:center">
+              <select name="role" style="padding:4px 9px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;outline:none;background:var(--white);color:var(--ink)">
+                {% for r in ROLES %}{% if r != 'super_admin' %}
+                <option value="{{ r }}" {% if r==u.role %}selected{% endif %}>{{ r }}</option>
+                {% endif %}{% endfor %}
+              </select>
+              <button type="submit" class="btn btn-outline btn-xs">Set Role</button>
+            </form>
+            <form method="POST" action="{{ url_for('admin_reset_password', uid=u.id) }}" style="display:flex;gap:5px;align-items:center">
+              <input type="password" name="new_password" placeholder="new password"
+                     style="padding:4px 9px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;outline:none;width:110px;background:var(--white);color:var(--ink)">
+              <button type="submit" class="btn btn-outline btn-xs">Reset PW</button>
+            </form>
+            <form method="POST" action="{{ url_for('admin_delete_user', uid=u.id) }}"
+                  onsubmit="return confirm('Permanently delete @{{ u.username }}?')">
+              <button type="submit" class="btn btn-red btn-xs">Delete</button>
+            </form>
+          </div>
+          {% else %}
+          <span style="font-size:12px;color:var(--ink3)">Protected</span>
+          {% endif %}
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- FLAGGED -->
+<div class="tab-pane" id="tab-flagged">
+  {% if flagged %}
+  {% for p in flagged %}
+  <div class="card" style="margin-bottom:12px;overflow:hidden">
+    <div class="flag-bar">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+      {{ p.flag_reason }} — by <strong>{{ p.uname }}</strong> (@{{ p.uusername }})
+    </div>
+    <div style="padding:14px 18px">
+      <p style="font-size:14px;color:var(--ink2);line-height:1.5;margin-bottom:14px">
+        {{ p.content[:300] }}{% if p.content|length > 300 %}…{% endif %}
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <form method="POST" action="{{ url_for('unflag_post', pid=p.id) }}">
+          <button type="submit" class="btn btn-outline btn-sm">Unflag</button>
+        </form>
+        {% if cu.role == 'super_admin' %}
+        <button class="btn btn-outline btn-sm" onclick="revealIdentity('{{ p.id }}')">Reveal Identity</button>
+        <form method="POST" action="{{ url_for('delete_post', pid=p.id) }}"
+              onsubmit="return confirm('Permanently delete this post?')">
+          <button type="submit" class="btn btn-red btn-sm">Delete Post</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="empty-state">
+    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    <h3>No flagged posts</h3><p>The community is behaving well!</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- CREATE USER -->
+{% if cu.role == 'super_admin' %}
+<div class="tab-pane" id="tab-create">
+  <div class="card" style="padding:28px;max-width:500px">
+    <h3 style="font-family:var(--font-h);font-size:18px;font-weight:700;margin-bottom:20px">Create New Account</h3>
+    <form method="POST" action="{{ url_for('admin_create_user') }}">
+      <div class="field"><label>Username</label><input type="text" name="username" required placeholder="e.g. jane_doe" autocomplete="off"></div>
+      <div class="field"><label>Full Name</label><input type="text" name="name" required placeholder="Full name"></div>
+      <div class="field"><label>Password</label><input type="password" name="password" required minlength="6" placeholder="min. 6 characters"></div>
+      <div class="field"><label>Role</label>
+        <select name="role">
+          {% for r in ROLES %}{% if r != 'super_admin' %}<option value="{{ r }}">{{ r.replace('_',' ').title() }}</option>{% endif %}{% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">Create Account</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>document.addEventListener('DOMContentLoaded',()=>switchTab('users'))</script>
+{% endblock %}
