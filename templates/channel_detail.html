@@ -176,12 +176,12 @@
     <div class="ch-post-media">
       {% if p.media_type == 'video' %}
       <video controls preload="metadata"><source src="{{ url_for('serve_media', filename=p.media_path) }}"></video>
-      {% elif p.media_type == 'document' %}
-    <a href="/download?url={{ p.media_path|urlencode }}&name={{ (p.get('media_name', ''))|urlencode }}" class="doc-link" onclick="this.innerHTML='&#8987; Downloading...'">
+          {% elif p.media_type == 'document' %}
+    <button class="doc-link" onclick="downloadDoc(this, '{{ p.media_path|e }}', '{{ p.get(\"media_name\", \"document\")|e }}')">
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>
       <span>{{ p.get('media_name', '') or 'Download Document' }}</span>
-    </a>
-{% else %}
+    </button>
+    {% else %}
       <img src="{{ url_for('serve_media', filename=p.media_path) }}" alt="" loading="lazy">
       {% endif %}
     </div>
@@ -252,3 +252,33 @@ function toggleComments(pid, btn) {
 }
 </script>
 {% endblock %}
+
+<script>
+function downloadDoc(btn, url, filename) {
+  var orig = btn.innerHTML;
+  btn.innerHTML = '<span>⏳ Downloading...</span>';
+  btn.disabled = true;
+  fetch('/download?url=' + encodeURIComponent(url) + '&name=' + encodeURIComponent(filename), {
+    credentials: 'same-origin'
+  })
+  .then(function(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.blob();
+  })
+  .then(function(blob) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    btn.innerHTML = orig;
+    btn.disabled = false;
+  })
+  .catch(function(e) {
+    alert('Download failed: ' + e.message);
+    btn.innerHTML = orig;
+    btn.disabled = false;
+  });
+}
+</script>
