@@ -1209,23 +1209,51 @@ def serve_media(filename):
 @login_required
 def download_media():
     """Proxy a document download with correct filename and content-type."""
-    import urllib.request, mimetypes
+    import mimetypes, urllib.request
     from urllib.parse import unquote
-    url      = request.args.get("url", "")
-    orig_name = request.args.get("name", "document")
+    url       = unquote(request.args.get("url", ""))
+    orig_name = unquote(request.args.get("name", "document"))
     if not url.startswith("http"):
         abort(404)
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        # Generate a signed Cloudinary URL to bypass auth restrictions
+        import cloudinary.utils
+        # Build signed URL using Cloudinary SDK
+        api_secret = os.environ.get("CLOUDINARY_API_SECRET", "")
+        api_key    = os.environ.get("CLOUDINARY_API_KEY", "")
+        cloud_name = os.environ.get("CLOUDINARY_CLOUD_NAME", "")
+        # Use the URL directly but with auth header via API key/secret
+        import base64
+        credentials = base64.b64encode(f"{api_key}:{api_secret}".encode()).decode()
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0",
+                "Authorization": f"Basic {credentials}"
+            }
+        )
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = resp.read()
         mime, _ = mimetypes.guess_type(orig_name)
         if not mime:
-            mime = "application/octet-stream"
-        from flask import Response
-        response = Response(data, mimetype=mime)
-        response.headers["Content-Disposition"] = f'attachment; filename="{orig_name}"' 
-        return response
+            # Detect from actual bytes
+            if data[:4] == b'%PDF':
+                mime = "application/pdf"
+            elif data[:2] == b'PK':
+                ext = orig_name.rsplit(".", 1)[-1].lower() if "." in orig_name else ""
+                mime_map = {
+                    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                }
+                mime = mime_map.get(ext, "application/octet-stream")
+            else:
+                mime = "application/octet-stream"
+        from flask import Response as FlaskResponse
+        resp = FlaskResponse(data, mimetype=mime)
+        resp.headers["Content-Disposition"] = f'attachment; filename="{orig_name}"' 
+        resp.headers["Content-Length"] = len(data)
+        return resp
     except Exception as e:
         app.logger.error(f"Download proxy error: {e}")
         abort(500)
