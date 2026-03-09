@@ -1197,20 +1197,17 @@ def serve_media(filename):
     abort(404)
 
 
-@app.route("/download/<path:filename>")
+@app.route("/download")
 @login_required
-def download_media(filename):
-    """Proxy a Cloudinary document download with correct filename and content-type."""
+def download_media():
+    """Proxy a document download with correct filename and content-type."""
     import urllib.request, mimetypes
-    # filename is the Cloudinary URL (url-encoded)
     from urllib.parse import unquote
-    url = unquote(filename)
+    url      = request.args.get("url", "")
+    orig_name = request.args.get("name", "document")
     if not url.startswith("http"):
         abort(404)
-    # Get original_name and media_url from query params
-    orig_name = request.args.get("name", "document")
     try:
-        import urllib.request
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = resp.read()
@@ -1219,7 +1216,7 @@ def download_media(filename):
             mime = "application/octet-stream"
         from flask import Response
         response = Response(data, mimetype=mime)
-        response.headers["Content-Disposition"] = f'attachment; filename="{orig_name}"'
+        response.headers["Content-Disposition"] = f'attachment; filename="{orig_name}"' 
         return response
     except Exception as e:
         app.logger.error(f"Download proxy error: {e}")
