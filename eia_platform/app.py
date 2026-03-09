@@ -28,7 +28,15 @@ DB_PATH    = DATA_DIR / "eia.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "mp4", "mov", "webm"}
+ALLOWED_EXTENSIONS = {
+    # Images
+    "png", "jpg", "jpeg", "gif", "webp",
+    # Video
+    "mp4", "mov", "webm",
+    # Documents
+    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+    "txt", "zip", "rar", "7z"
+}
 MAX_UPLOAD_BYTES   = 30 * 1024 * 1024  # 30 MB
 
 ROLES = ["student", "teacher", "senator", "admin", "super_admin"]
@@ -237,7 +245,15 @@ def save_upload(file) -> tuple[str, str]:
     ext  = file.filename.rsplit(".", 1)[1].lower()
     name = f"{_uid()}.{ext}"
     file.save(str(UPLOAD_DIR / name))
-    mtype = "video" if _is_video(name) else "image"
+    
+    # Determine media type
+    if _is_video(name):
+        mtype = "video"
+    elif ext in {"pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "zip", "rar", "7z"}:
+        mtype = "document"
+    else:  # images
+        mtype = "image"
+    
     return name, mtype
 
 # ─── Auth helpers ─────────────────────────────────────────────────────────────

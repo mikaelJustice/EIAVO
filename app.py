@@ -24,7 +24,15 @@ from flask import (
 from werkzeug.utils import secure_filename
 
 # ─── Config ───────────────────────────────────────────────────────────────────
-ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "mp4", "mov", "webm"}
+ALLOWED_EXTENSIONS = {
+    # Images
+    "png", "jpg", "jpeg", "gif", "webp",
+    # Video
+    "mp4", "mov", "webm",
+    # Documents
+    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+    "txt", "zip", "rar", "7z"
+}
 MAX_UPLOAD_BYTES   = 30 * 1024 * 1024  # 30 MB
 
 # Cloudinary configuration (set via env vars on Render)
@@ -363,9 +371,19 @@ def save_upload(file) -> tuple[str, str]:
     if not _allowed(file.filename):
         return "", ""
     ext   = file.filename.rsplit(".", 1)[1].lower()
-    mtype = "video" if ext in {"mp4","mov","webm"} else "image"
+    
+    # Determine media type and resource type
+    if ext in {"mp4", "mov", "webm"}:
+        mtype = "video"
+        resource_type = "video"
+    elif ext in {"pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "zip", "rar", "7z"}:
+        mtype = "document"
+        resource_type = "raw"
+    else:  # images
+        mtype = "image"
+        resource_type = "image"
+    
     try:
-        resource_type = "video" if mtype == "video" else "image"
         result = cloudinary.uploader.upload(
             file,
             folder        = "eia_voice",
