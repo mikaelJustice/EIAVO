@@ -367,8 +367,9 @@ def save_upload(file) -> tuple[str, str, str]:
         return "", "", ""
     if not _allowed(file.filename):
         return "", "", ""
+    import re as _re
     original_name = file.filename
-    ext   = original_name.rsplit(".", 1)[1].lower()
+    ext = original_name.rsplit(".", 1)[1].lower() if "." in original_name else ""
     if ext in {"mp4","mov","webm"}:
         mtype = "video"
     elif ext in {"pdf","doc","docx","ppt","pptx","xls","xlsx","txt"}:
@@ -376,14 +377,21 @@ def save_upload(file) -> tuple[str, str, str]:
     else:
         mtype = "image"
     try:
-        # Cloudinary resource_type: video, image, or raw (for documents)
         resource_type = "video" if mtype == "video" else ("raw" if mtype == "document" else "image")
+        # Use original filename (sanitised) as public_id so URL keeps the extension
+        safe_stem = _re.sub(r'[^a-zA-Z0-9._-]', '_', original_name.rsplit(".", 1)[0])[:60]
+        public_id = f"{_uid()}_{safe_stem}"
+        if mtype == "document" and ext:
+            # For raw uploads Cloudinary DOES append extension to URL when public_id has no ext
+            # We must include the extension in the public_id
+            public_id = f"{public_id}.{ext}"
         result = cloudinary.uploader.upload(
             file,
             folder        = "eia_voice",
             resource_type = resource_type,
-            public_id     = _uid(),
+            public_id     = public_id,
             use_filename  = False,
+            overwrite     = False,
         )
         url = result.get("secure_url", "")
         return url, mtype, original_name
