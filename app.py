@@ -148,6 +148,7 @@ def init_db():
         content     TEXT    NOT NULL,
         media_path  TEXT    DEFAULT '',
         media_type  TEXT    DEFAULT '',
+        media_name  TEXT    DEFAULT '',
         is_anon     INTEGER NOT NULL DEFAULT 0,
         recipient   TEXT    NOT NULL DEFAULT 'all_school',
         flagged     INTEGER NOT NULL DEFAULT 0,
@@ -283,6 +284,7 @@ def init_db():
         content     TEXT    NOT NULL,
         media_path  TEXT    DEFAULT '',
         media_type  TEXT    DEFAULT '',
+        media_name  TEXT    DEFAULT '',
         is_anon     INTEGER NOT NULL DEFAULT 0,
         created_at  TEXT    NOT NULL
     )""")
@@ -359,13 +361,14 @@ def get_anon_name(user_id: int) -> str:
     execute("UPDATE users SET anon_name=? WHERE id=?", (name, user_id))
     return name
 
-def save_upload(file) -> tuple[str, str]:
-    """Upload file to Cloudinary, return (public_url, media_type)."""
+def save_upload(file) -> tuple[str, str, str]:
+    """Upload file to Cloudinary, return (public_url, media_type, original_name)."""
     if not file or not file.filename:
-        return "", ""
+        return "", "", ""
     if not _allowed(file.filename):
-        return "", ""
-    ext   = file.filename.rsplit(".", 1)[1].lower()
+        return "", "", ""
+    original_name = file.filename
+    ext   = original_name.rsplit(".", 1)[1].lower()
     if ext in {"mp4","mov","webm"}:
         mtype = "video"
     elif ext in {"pdf","doc","docx","ppt","pptx","xls","xlsx","txt"}:
@@ -383,10 +386,10 @@ def save_upload(file) -> tuple[str, str]:
             use_filename  = False,
         )
         url = result.get("secure_url", "")
-        return url, mtype
+        return url, mtype, original_name
     except Exception as e:
         app.logger.error(f"Cloudinary upload failed: {e}")
-        return "", ""
+        return "", "", ""
 
 # ─── Auth helpers ─────────────────────────────────────────────────────────────
 def login_required(f):
@@ -503,7 +506,7 @@ def serialise_post(row, viewer_id=None):
 
     return {
         "id": row["id"], "content": row["content"],
-        "media": row["media_path"], "media_path": row["media_path"], "media_type": row["media_type"],
+        "media": row["media_path"], "media_path": row["media_path"], "media_type": row["media_type"], "media_name": row.get("media_name", ""),
         "is_anon": is_anon, "display": display, "display_name": display, "avatar": avatar,
         "role": role_shown, "role_shown": role_shown, "author_id": row["author_id"],
         "recipient": row["recipient"], "flagged": bool(row["flagged"]),
@@ -595,7 +598,7 @@ def create_post():
     if "media" in request.files:
         f = request.files["media"]
         if f and f.filename:
-            media_path, media_type = save_upload(f)
+            media_path, media_type, media_name = save_upload(f)
 
     # Must have content OR an uploaded file
     if not content and not media_path:
@@ -604,8 +607,8 @@ def create_post():
 
     pid = _uid()
     execute(
-        "INSERT INTO posts (id,author_id,content,media_path,media_type,is_anon,recipient,created_at) VALUES (?,?,?,?,?,?,?,?)",
-        (pid, user["id"], content, media_path, media_type, 1 if is_anon else 0, recipient, _now())
+        "INSERT INTO posts (id,author_id,content,media_path,media_type,media_name,is_anon,recipient,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        (pid, user["id"], content, media_path, media_type, media_name, 1 if is_anon else 0, recipient, _now())
     )
 
     # Notify followers
@@ -858,7 +861,7 @@ def edit_profile():
         if "avatar" in request.files:
             f = request.files["avatar"]
             if f and f.filename:
-                fname, _ = save_upload(f)
+                fname, _, _x = save_upload(f)
                 if fname:
                     avatar = fname
 
@@ -1193,6 +1196,35 @@ def serve_media(filename):
         return redirect(f"https://res.cloudinary.com/{cloud}/image/upload/eia_voice/{filename}")
     abort(404)
 
+
+@app.route("/download/<path:filename>")
+@login_required
+def download_media(filename):
+    """Proxy a Cloudinary document download with correct filename and content-type."""
+    import urllib.request, mimetypes
+    # filename is the Cloudinary URL (url-encoded)
+    from urllib.parse import unquote
+    url = unquote(filename)
+    if not url.startswith("http"):
+        abort(404)
+    # Get original_name and media_url from query params
+    orig_name = request.args.get("name", "document")
+    try:
+        import urllib.request
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = resp.read()
+        mime, _ = mimetypes.guess_type(orig_name)
+        if not mime:
+            mime = "application/octet-stream"
+        from flask import Response
+        response = Response(data, mimetype=mime)
+        response.headers["Content-Disposition"] = f'attachment; filename="{orig_name}"'
+        return response
+    except Exception as e:
+        app.logger.error(f"Download proxy error: {e}")
+        abort(500)
+
 # ─── Error handlers ───────────────────────────────────────────────────────────
 @app.errorhandler(403)
 def e403(e): return render_template("error.html", code=403, msg="Access Forbidden"), 403
@@ -1379,7 +1411,7 @@ def channel_post(cid):
     if "media" in request.files:
         f = request.files["media"]
         if f and f.filename:
-            media_path, media_type = save_upload(f)
+            media_path, media_type, media_name = save_upload(f)
 
     if not content and not media_path:
         flash("Post cannot be empty.", "error")
@@ -1387,8 +1419,8 @@ def channel_post(cid):
 
     pid = _uid()
     execute(
-        "INSERT INTO channel_posts (id,channel_id,author_id,content,media_path,media_type,is_anon,created_at) VALUES (?,?,?,?,?,?,?,?)",
-        (pid, cid, user["id"], content, media_path, media_type, 1 if is_anon else 0, _now())
+        "INSERT INTO channel_posts (id,channel_id,author_id,content,media_path,media_type,media_name,is_anon,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        (pid, cid, user["id"], content, media_path, media_type, media_name, 1 if is_anon else 0, _now())
     )
 
     # Notify all followers
@@ -1619,7 +1651,7 @@ def class_post(cid):
             ext  = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else "bin"
             safe = secure_filename(f.filename)
             fname = f"{_uid()}.{ext}"
-            url, _ = save_upload(f)
+            url, _, _x = save_upload(f)
             file_path = url
             file_name = safe
 
@@ -1672,7 +1704,7 @@ def class_reply(cid, pid):
             ext   = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else "bin"
             safe  = secure_filename(f.filename)
             fname = f"{_uid()}.{ext}"
-            url, _ = save_upload(f)
+            url, _, _x = save_upload(f)
             file_path = url
             file_name = safe
 
