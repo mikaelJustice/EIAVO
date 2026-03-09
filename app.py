@@ -384,11 +384,13 @@ def save_upload(file) -> tuple[str, str]:
         resource_type = "image"
     
     try:
+        # Include extension in public_id to preserve file format on download
         result = cloudinary.uploader.upload(
             file,
             folder        = "eia_voice",
             resource_type = resource_type,
-            public_id     = _uid(),
+            public_id     = f"{_uid()}.{ext}",
+            format        = ext,
         )
         url = result.get("secure_url", "")
         return url, mtype
