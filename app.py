@@ -452,7 +452,7 @@ def serialise_post(row, viewer_id=None):
 
     # Reactions
     raw_reacts = query(
-        "SELECT emoji, COUNT(*) as c, GROUP_CONCAT(user_id) as uids FROM reactions WHERE post_id=? GROUP BY emoji",
+        "SELECT emoji, COUNT(*) as c, STRING_AGG(user_id::text, ',') as uids FROM reactions WHERE post_id=? GROUP BY emoji",
         (row["id"],)
     )
     reactions = {}
@@ -1264,7 +1264,7 @@ def create_channel():
         if ch:
             # Creator auto-follows their channel
             execute(
-                "INSERT OR IGNORE INTO channel_follows (channel_id, user_id, joined_at) VALUES (?,?,?)",
+                "INSERT INTO channel_follows (channel_id, user_id, joined_at) VALUES (?,?,?) ON CONFLICT DO NOTHING",
                 (ch["id"], user["id"], _now())
             )
             flash(f"Channel #{name} created!", "success")
@@ -1704,7 +1704,7 @@ def class_enroll(cid):
     if sid:
         try:
             execute(
-                "INSERT OR IGNORE INTO class_members (class_id, student_id, joined_at) VALUES (?,?,?)",
+                "INSERT INTO class_members (class_id, student_id, joined_at) VALUES (?,?,?) ON CONFLICT DO NOTHING",
                 (cid, int(sid), _now())
             )
             # Notify student
