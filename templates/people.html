@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Explore{% endblock %}
+{% block content %}
+<div class="page-hd"><h1>Explore People</h1><p>Connect with your EIA community</p></div>
+
+<form method="GET" style="margin-bottom:20px;display:flex;gap:9px">
+  <div style="flex:1;position:relative;display:flex;align-items:center">
+    <svg style="position:absolute;left:12px;color:var(--ink3)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input type="text" name="q" value="{{ search }}" placeholder="Search by name or username…"
+           style="width:100%;padding:10px 14px 10px 36px;border:1.5px solid var(--border);border-radius:var(--r);font-size:14px;outline:none;transition:border .15s;background:var(--white);color:var(--ink)"
+           onfocus="this.style.borderColor='var(--navy)'" onblur="this.style.borderColor='var(--border)'">
+  </div>
+  {% if search %}<a href="{{ url_for('people') }}" class="btn btn-outline btn-sm">Clear</a>{% endif %}
+</form>
+
+{% if users %}
+<div class="people-grid">
+  {% for u in users %}
+  <div class="person-card">
+    <div class="av av-lg">
+      {% if u.avatar %}<img src="{{ url_for('serve_media', filename=u.avatar) }}" alt="">
+      {% else %}{{ u.username[0].upper() }}{% endif %}
+    </div>
+    <div class="person-name">
+      <a href="{{ url_for('profile', username=u.username) }}" style="color:inherit">{{ u.username }}</a>
+    </div>
+    <div class="person-handle">@{{ u.username }}</div>
+    <span class="role-tag rt-{{ u.role }}">{{ ROLE_LABELS.get(u.role, u.role) }}</span>
+    <div style="font-size:12px;color:var(--ink2)"><span id="fc-{{ u.id }}">{{ u.followers }}</span> followers</div>
+    <div style="display:flex;gap:7px;margin-top:4px">
+      <button class="btn-follow btn-sm {% if u.i_follow %}following{% endif %}"
+              data-follow-uid="{{ u.id }}">{{ 'Following' if u.i_follow else 'Follow' }}</button>
+      <form method="POST" action="{{ url_for('start_conversation', uid=u.id) }}" style="display:inline">
+        <button type="submit" class="btn btn-outline btn-sm">Message</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+  <h3>No users found</h3><p>Try a different search term.</p>
+</div>
+{% endif %}
+{% endblock %}

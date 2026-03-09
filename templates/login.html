@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Sign In — EIA Voice</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{--navy:#2e3192;--navy-d:#1e2070;--lime:#b8d432;--lime-d:#96b020;--bg:#f4f5ff;--white:#fff;--border:#d8daf0;--ink:#0a0a0a;--ink2:#5a5c80;--ink3:#9899b8;--red:#ed4956;--r:12px}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;display:flex;-webkit-font-smoothing:antialiased}
+
+    /* LEFT PANEL */
+    .hero{flex:1;background:var(--navy);position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:52px}
+    .hero-shape{position:absolute;border-radius:50%;background:var(--lime);opacity:.08}
+    .hs1{width:500px;height:500px;top:-200px;right:-180px}
+    .hs2{width:300px;height:300px;bottom:-100px;left:-80px}
+    .hs3{width:180px;height:180px;top:40%;left:60%;background:rgba(255,255,255,.06);border-radius:40px;transform:rotate(30deg)}
+    .hero-inner{position:relative;z-index:1;max-width:460px;width:100%}
+    .hero-logo{margin-bottom:36px}
+    .hero-logo img{height:70px;width:auto;mix-blend-mode:screen;filter:brightness(1.2)}
+    .hero-headline{font-family:'Syne',sans-serif;font-size:48px;font-weight:800;color:#fff;line-height:1.1;letter-spacing:-1.5px;margin-bottom:16px}
+    .hero-headline span{color:var(--lime)}
+    .hero-sub{font-size:16px;color:rgba(255,255,255,.65);line-height:1.65;margin-bottom:44px;max-width:360px}
+    .feature-list{display:flex;flex-direction:column;gap:16px}
+    .feature{display:flex;gap:14px;align-items:flex-start}
+    .feature-dot{width:8px;height:8px;border-radius:50%;background:var(--lime);flex-shrink:0;margin-top:6px}
+    .feature h4{font-size:14px;font-weight:600;color:#fff}
+    .feature p{font-size:13px;color:rgba(255,255,255,.5);margin-top:2px;line-height:1.4}
+
+    /* RIGHT PANEL */
+    .login-panel{width:420px;flex-shrink:0;background:var(--white);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:52px 40px}
+    .panel-logo{margin-bottom:32px}
+    .panel-logo img{height:52px;width:auto}
+    .panel-title{font-family:'Syne',sans-serif;font-size:28px;font-weight:700;letter-spacing:-.6px;margin-bottom:4px;text-align:center}
+    .panel-sub{font-size:14px;color:var(--ink2);margin-bottom:32px;text-align:center}
+    .field{margin-bottom:14px;width:100%}
+    .field label{display:block;font-size:11px;font-weight:700;color:var(--ink2);margin-bottom:6px;letter-spacing:.06em;text-transform:uppercase}
+    .field input{width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--r);padding:12px 16px;font-family:inherit;font-size:15px;color:var(--ink);outline:none;transition:border .2s,box-shadow .2s}
+    .field input:focus{border-color:var(--navy);box-shadow:0 0 0 4px rgba(46,49,146,.1);background:var(--white)}
+    .field input::placeholder{color:var(--ink3)}
+    .login-btn{width:100%;padding:13px;border:none;border-radius:var(--r);background:var(--navy);color:#fff;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;margin-top:6px;transition:background .15s,transform .1s;letter-spacing:.02em}
+    .login-btn:hover{background:var(--navy-d)}.login-btn:active{transform:scale(.99)}
+    .login-note{margin-top:28px;padding:14px 16px;background:var(--bg);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--ink2);text-align:center;line-height:1.55;width:100%}
+    .flash-msg{padding:11px 14px;border-radius:10px;font-size:13px;font-weight:500;margin-bottom:16px;background:#fdecea;border:1px solid #ef9a9a;color:#c62828;width:100%}
+
+    @media(max-width:880px){.hero{display:none}.login-panel{width:100%;padding:40px 24px}}
+  </style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-shape hs1"></div>
+  <div class="hero-shape hs2"></div>
+  <div class="hero-shape hs3"></div>
+  <div class="hero-inner">
+    <div class="hero-logo">
+      <img src="/static/img/eia-logo.png" alt="EIA">
+    </div>
+    <div class="hero-headline">Your voice,<br><span>amplified.</span></div>
+    <p class="hero-sub">Empower International Academy's anonymous platform for free, safe, and meaningful expression.</p>
+    <div class="feature-list">
+      <div class="feature"><div class="feature-dot"></div><div><h4>Guaranteed Anonymity</h4><p>Post freely without revealing who you are. Your identity is protected by design.</p></div></div>
+      <div class="feature"><div class="feature-dot"></div><div><h4>Safe Expression</h4><p>Anonymity doesn't mean impunity — abuse can be traced by the super admin if needed.</p></div></div>
+      <div class="feature"><div class="feature-dot"></div><div><h4>Connect &amp; Engage</h4><p>Follow peers, react to posts, comment, and DM — all with full anonymity control.</p></div></div>
+      <div class="feature"><div class="feature-dot"></div><div><h4>Role-Based Channels</h4><p>Students, teachers, senators and admins each have dedicated voice channels.</p></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="login-panel">
+  <div class="panel-logo">
+    <img src="/static/img/eia-logo.png" alt="Empower International Academy">
+  </div>
+  <div class="panel-title">Welcome back</div>
+  <p class="panel-sub">Sign in to your EIA account</p>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+    <div class="flash-msg">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <form method="POST" style="width:100%">
+    <div class="field"><label>Username</label><input type="text" name="username" autocomplete="username" placeholder="Enter your username" required autofocus></div>
+    <div class="field"><label>Password</label><input type="password" name="password" autocomplete="current-password" placeholder="Enter your password" required></div>
+    <button type="submit" class="login-btn">Sign In</button>
+  </form>
+  <div class="login-note">Accounts are created by your school administrator.<br>Contact admin if you need access.</div>
+</div>
+
+</body>
+</html>

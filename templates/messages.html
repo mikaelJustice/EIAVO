@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Messages{% endblock %}
+{% block content %}
+<div class="page-hd"><h1>Messages</h1></div>
+<div class="conv-list">
+{% if convs %}
+  {% for c in convs %}
+  <a href="{{ url_for('conversation', conv_id=c.id) }}" class="conv-item" style="text-decoration:none;color:inherit">
+    <div class="av av-md">
+      {% if c.other_avatar %}<img src="{{ url_for('serve_media', filename=c.other_avatar) }}" alt="">
+      {% else %}{{ c.other_name[0].upper() }}{% endif %}
+    </div>
+    <div style="flex:1;min-width:0">
+      <div class="conv-name">{{ c.other_name }}</div>
+      <div class="conv-preview">{{ c.last_msg or 'No messages yet' }}</div>
+    </div>
+    <div style="text-align:right;flex-shrink:0">
+      {% if c.last_at %}<div style="font-size:11px;color:var(--ink3)">{{ _rel(c.last_at) }}</div>{% endif %}
+      {% if c.unread_ct %}<div class="conv-unread" style="margin-top:4px;margin-left:auto"></div>{% endif %}
+    </div>
+  </a>
+  {% endfor %}
+{% else %}
+<div class="empty-state">
+  <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+  <h3>No conversations yet</h3>
+  <p>Start a DM from someone's profile or the Explore page.</p>
+</div>
+{% endif %}
+</div>
+{% endblock %}

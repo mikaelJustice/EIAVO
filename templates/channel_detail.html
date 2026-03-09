@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block title %}#{{ ch.name }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.channel-header {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+  border-radius: var(--r); padding: 24px 28px; color: #fff; margin-bottom: 24px;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+}
+.channel-header h1 { font-family: var(--font-h); font-size: 26px; font-weight: 800; }
+.channel-header h1 .hash { opacity: .6; }
+.channel-header p  { font-size: 13px; opacity: .75; margin-top: 5px; }
+.channel-meta      { font-size: 12px; opacity: .65; margin-top: 8px; display: flex; gap: 14px; }
+.ch-follow-btn {
+  padding: 9px 24px; border-radius: 30px; font-size: 14px; font-weight: 700;
+  cursor: pointer; border: 2px solid rgba(255,255,255,.7); background: rgba(255,255,255,.15);
+  color: #fff; transition: all .15s; white-space: nowrap;
+}
+.ch-follow-btn.following { background: rgba(255,255,255,.9); color: #1a1a2e; }
+.ch-follow-btn:hover { background: rgba(255,255,255,.95); color: #1a1a2e; }
+
+/* Composer */
+.ch-composer {
+  background: var(--white); border: 1.5px solid var(--border);
+  border-radius: var(--r); padding: 16px; margin-bottom: 20px;
+}
+.ch-composer textarea {
+  width: 100%; border: none; outline: none; font-size: 14px; line-height: 1.6;
+  color: var(--ink); resize: none; min-height: 64px; background: transparent; font-family: inherit;
+}
+.ch-composer textarea::placeholder { color: var(--ink3); }
+.ch-composer-footer {
+  border-top: 1px solid var(--border-l); margin-top: 10px; padding-top: 10px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+
+/* Post card */
+.ch-post {
+  background: var(--white); border: 1.5px solid var(--border);
+  border-radius: var(--r); margin-bottom: 16px; overflow: hidden;
+}
+.ch-post-header { display: flex; align-items: center; gap: 12px; padding: 14px 16px 0; }
+.ch-post-body   { padding: 8px 16px 12px; font-size: 14px; line-height: 1.65; color: var(--ink); white-space: pre-wrap; }
+.ch-post-media  { line-height: 0; }
+.ch-post-media img   { width: 100%; max-height: 520px; object-fit: contain; display: block; }
+.ch-post-media video { width: 100%; max-height: 520px; display: block; }
+.ch-post-footer {
+  padding: 8px 16px 10px; border-top: 1px solid var(--border-l);
+  display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--ink3);
+}
+.comment-tog-btn {
+  background: none; border: none; cursor: pointer; font-size: 12px; color: var(--ink2);
+  font-weight: 600; display: flex; align-items: center; gap: 5px; padding: 4px 6px;
+  border-radius: 6px; transition: background .1s;
+}
+.comment-tog-btn:hover { background: var(--bg); }
+
+/* Comments */
+.ch-comments { border-top: 1px solid var(--border-l); padding: 12px 16px; display: none; }
+.ch-comments.open { display: block; }
+.ch-comment-row { display: flex; gap: 10px; margin-bottom: 10px; }
+.ch-comment-body {
+  flex: 1; background: var(--bg); border-radius: 0 10px 10px 10px;
+  padding: 8px 12px; font-size: 13px; line-height: 1.5;
+}
+.ch-comment-form {
+  display: flex; gap: 8px; align-items: center; margin-top: 10px;
+  padding-top: 10px; border-top: 1px dashed var(--border-l);
+}
+.ch-comment-input {
+  flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 20px;
+  font-size: 13px; font-family: inherit; background: var(--white); outline: none;
+  transition: border .12s;
+}
+.ch-comment-input:focus { border-color: var(--navy); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Channel Header -->
+<div class="channel-header">
+  <div>
+    <h1><span class="hash">#</span>{{ ch.name }}</h1>
+    {% if ch.description %}<p>{{ ch.description }}</p>{% endif %}
+    <div class="channel-meta">
+      <span>👥 <strong id="followerCount">{{ ch.follower_count }}</strong> followers</span>
+      <span>📝 {{ posts|length }} posts</span>
+      <span>by @{{ ch.creator_name }}</span>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <a href="{{ url_for('channels') }}" class="ch-follow-btn" style="font-size:13px;padding:7px 16px">← All Channels</a>
+    {% if ch.creator_id != cu.id %}
+    <button class="ch-follow-btn {% if ch.is_following %}following{% endif %}"
+            id="mainFollowBtn"
+            onclick="toggleFollow({{ ch.id }}, this)">
+      {% if ch.is_following %}✓ Following{% else %}Follow Channel{% endif %}
+    </button>
+    {% else %}
+    <span style="font-size:12px;opacity:.6;padding:7px 14px">You own this channel</span>
+    {% if cu.role in ('admin','super_admin') or ch.creator_id == cu.id %}
+    <form method="POST" action="{{ url_for('delete_channel', cid=ch.id) }}"
+          onsubmit="return confirm('Delete this channel permanently?')">
+      <button type="submit" class="ch-follow-btn" style="background:rgba(220,50,50,.3);border-color:rgba(220,50,50,.6)">Delete</button>
+    </form>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<!-- Composer — followers and creator can post -->
+{% if ch.is_following or ch.creator_id == cu.id %}
+<div class="ch-composer">
+  <form method="POST" action="{{ url_for('channel_post', cid=ch.id) }}" enctype="multipart/form-data">
+    <div style="display:flex;gap:12px;align-items:flex-start">
+      <div class="av av-md">
+        {% if cu.avatar %}<img src="{{ url_for('serve_media', filename=cu.avatar) }}" alt="">
+        {% else %}{{ cu.username[0].upper() }}{% endif %}
+      </div>
+      <textarea name="content" placeholder="Post something in #{{ ch.name }}…" rows="2"></textarea>
+    </div>
+    <div class="ch-composer-footer">
+      <label class="c-chip" id="chAnonChip">
+        <input type="checkbox" name="is_anon" value="1">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 10h.01M15 10h.01M12 2a8 8 0 018 8v12l-4-2-4 2-4-2-4 2V10a8 8 0 018-8z"/></svg>
+        Anonymous
+      </label>
+      <label class="c-chip-file">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        Photo/Video
+        <input type="file" name="media" accept="image/*,video/*">
+      </label>
+      <button type="submit" class="btn btn-primary btn-sm" style="margin-left:auto">Post</button>
+    </div>
+  </form>
+</div>
+{% else %}
+<div style="background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);padding:18px;margin-bottom:20px;text-align:center;color:var(--ink2);font-size:14px">
+  <strong>Follow this channel</strong> to post and join the conversation.
+</div>
+{% endif %}
+
+<!-- Posts -->
+{% if posts %}
+  {% for p in posts %}
+  <div class="ch-post" id="chp-{{ p.id }}">
+    <div class="ch-post-header">
+      <div class="av av-md">
+        {% if p.avatar and not p.is_anon %}<img src="{{ url_for('serve_media', filename=p.avatar) }}" alt="">
+        {% else %}{{ p.display[0].upper() }}{% endif %}
+      </div>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+          <strong style="font-size:14px">{{ p.display }}</strong>
+          <span class="role-tag rt-{{ p.author_role }}" style="font-size:10px">{{ {'student':'Student','teacher':'Teacher','senator':'Senator','admin':'Admin'}.get(p.author_role, p.author_role) }}</span>
+          <span style="font-size:11px;color:var(--ink3)">{{ _rel(p.created_at) }}</span>
+        </div>
+      </div>
+      {% if p.author_id == cu.id or ch.creator_id == cu.id or cu.role in ('admin','super_admin') %}
+      <form method="POST" action="{{ url_for('delete_channel_post', pid=p.id) }}"
+            onsubmit="return confirm('Delete this post?')">
+        <button type="submit" class="menu-btn">
+          <svg class="ic" width="16" height="16"><use href="#ic-trash"/></svg>
+        </button>
+      </form>
+      {% endif %}
+    </div>
+
+    {% if p.content %}
+    <div class="ch-post-body">{{ p.content }}</div>
+    {% endif %}
+
+    {% if p.media_path %}
+    <div class="ch-post-media">
+      {% if p.media_type == 'video' %}
+      <video controls preload="metadata"><source src="{{ url_for('serve_media', filename=p.media_path) }}"></video>
+      {% else %}
+      <img src="{{ url_for('serve_media', filename=p.media_path) }}" alt="" loading="lazy">
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="ch-post-footer">
+      <button class="comment-tog-btn" onclick="toggleComments('{{ p.id }}', this)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        <span class="cmt-count-{{ p.id }}">{{ p.comment_count }}</span> {{ 'comment' if p.comment_count == 1 else 'comments' }}
+      </button>
+      <span style="margin-left:auto">{{ _fmt(p.created_at) }}</span>
+    </div>
+
+    <!-- Comments -->
+    <div class="ch-comments" id="chcmts-{{ p.id }}">
+      {% for c in p.comments %}
+      <div class="ch-comment-row">
+        <div class="av av-sm">
+          {% if c.avatar and not c.is_anon %}<img src="{{ url_for('serve_media', filename=c.avatar) }}" alt="">
+          {% else %}{{ c.display[0].upper() }}{% endif %}
+        </div>
+        <div class="ch-comment-body">
+          <strong style="font-size:12px">{{ c.display }}</strong>
+          <span style="font-size:12px;color:var(--ink3);margin-left:6px">{{ _rel(c.created_at) }}</span>
+          <div style="margin-top:3px">{{ c.content }}</div>
+        </div>
+      </div>
+      {% endfor %}
+
+      <form method="POST" action="{{ url_for('channel_comment', cid=ch.id, pid=p.id) }}"
+            class="ch-comment-form">
+        <div class="av av-sm" style="flex-shrink:0">
+          {% if cu.avatar %}<img src="{{ url_for('serve_media', filename=cu.avatar) }}" alt="">
+          {% else %}{{ cu.username[0].upper() }}{% endif %}
+        </div>
+        <input type="text" name="content" class="ch-comment-input" placeholder="Add a comment…">
+        <button type="submit" class="comment-post-btn">Post</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+
+{% else %}
+<div style="text-align:center;padding:60px 20px;color:var(--ink2)">
+  <div style="font-size:44px;margin-bottom:12px">📡</div>
+  <h3>No posts yet</h3>
+  <p>{% if ch.is_following or ch.creator_id == cu.id %}Be the first to post in #{{ ch.name }}!{% else %}Follow this channel to see and create posts.{% endif %}</p>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function toggleFollow(cid, btn) {
+  const res = await fetch(`/channels/${cid}/follow`, { method: 'POST' });
+  const d   = await res.json();
+  const fc  = document.getElementById('followerCount');
+  const cur = parseInt(fc.textContent);
+  fc.textContent = d.following ? cur + 1 : Math.max(0, cur - 1);
+  btn.textContent = d.following ? '✓ Following' : 'Follow Channel';
+  btn.classList.toggle('following', d.following);
+}
+
+function toggleComments(pid, btn) {
+  const wrap = document.getElementById(`chcmts-${pid}`);
+  wrap.classList.toggle('open');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+<div class="page-hd"><h1>Notifications</h1></div>
+<div class="notif-list">
+{% if notifs %}
+  {% for n in notifs %}
+  <div class="notif-item {% if not n.is_read %}unread{% endif %}">
+    <div class="notif-dot {% if n.is_read %}read{% endif %}"></div>
+    <div style="flex:1">
+      <div class="notif-text">
+        {% if n.link %}<a href="{{ n.link }}" style="color:inherit">{{ n.text }}</a>
+        {% else %}{{ n.text }}{% endif %}
+      </div>
+      <div class="notif-time">{{ _rel(n.created_at) }}</div>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="empty-state">
+  <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+  <h3>All caught up</h3><p>No notifications yet.</p>
+</div>
+{% endif %}
+</div>
+{% endblock %}
