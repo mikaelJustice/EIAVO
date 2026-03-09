@@ -1,10 +1,8 @@
 """
-EIA Voice Platform — Flask + SQLite
-A beautiful, Instagram/Facebook-style anonymous school social platform.
-Anonymity is guaranteed to users; Super Admin can reveal identities if abuse occurs.
+EIA Voice Platform — Flask + PostgreSQL + Cloudinary
+Production-ready version for Render deployment.
 """
 
-import sqlite3
 import hashlib
 import secrets
 import os
@@ -13,23 +11,29 @@ import re
 from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
+
+import psycopg2
+import psycopg2.extras
+import cloudinary
+import cloudinary.uploader
+
 from flask import (
     Flask, render_template, redirect, url_for,
-    request, session, jsonify, flash, send_from_directory, abort, g
+    request, session, jsonify, flash, abort, g
 )
 from werkzeug.utils import secure_filename
 
-# ─── Paths & Config ───────────────────────────────────────────────────────────
-BASE_DIR   = Path(__file__).resolve().parent
-DATA_DIR   = BASE_DIR / "data"
-UPLOAD_DIR = DATA_DIR / "uploads"
-DB_PATH    = DATA_DIR / "eia.db"
-
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-
+# ─── Config ───────────────────────────────────────────────────────────────────
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "mp4", "mov", "webm"}
 MAX_UPLOAD_BYTES   = 30 * 1024 * 1024  # 30 MB
+
+# Cloudinary configuration (set via env vars on Render)
+cloudinary.config(
+    cloud_name = os.environ.get("CLOUDINARY_CLOUD_NAME", ""),
+    api_key    = os.environ.get("CLOUDINARY_API_KEY", ""),
+    api_secret = os.environ.get("CLOUDINARY_API_SECRET", ""),
+    secure     = True
+)
 
 ROLES = ["student", "teacher", "senator", "admin", "super_admin"]
 
@@ -82,14 +86,16 @@ RECIPIENT_LABELS = {
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key        = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+# Render gives postgres:// but psycopg2 needs postgresql://
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# ─── DB helpers ───────────────────────────────────────────────────────────────
+# ─── DB helpers (PostgreSQL) ──────────────────────────────────────────────────
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(str(DB_PATH), detect_types=sqlite3.PARSE_DECLTYPES)
-        g.db.row_factory = sqlite3.Row
-        g.db.execute("PRAGMA journal_mode=WAL")
-        g.db.execute("PRAGMA foreign_keys=ON")
+        g.db = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+        g.db.autocommit = False
     return g.db
 
 @app.teardown_appcontext
@@ -98,38 +104,44 @@ def close_db(exc=None):
     if db:
         db.close()
 
+def _pg(sql):
+    """Convert SQLite ? placeholders to PostgreSQL %s placeholders."""
+    return sql.replace("?", "%s")
+
 def query(sql, args=(), one=False):
     db  = get_db()
-    cur = db.execute(sql, args)
-    rv  = cur.fetchall()
+    cur = db.cursor()
+    cur.execute(_pg(sql), args)
+    rv = cur.fetchall()
     return (rv[0] if rv else None) if one else rv
 
 def execute(sql, args=()):
-    db = get_db()
-    cur = db.execute(sql, args)
+    db  = get_db()
+    cur = db.cursor()
+    cur.execute(_pg(sql), args)
     db.commit()
     return cur
 
 def init_db():
-    """Create all tables and seed super-admin account."""
-    db = sqlite3.connect(str(DB_PATH))
-    db.row_factory = sqlite3.Row
-    db.executescript("""
-    PRAGMA journal_mode=WAL;
-    PRAGMA foreign_keys=ON;
+    """Create all tables (PostgreSQL) and seed super-admin account."""
+    db  = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    cur = db.cursor()
 
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS users (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
-        username    TEXT    UNIQUE NOT NULL COLLATE NOCASE,
+        id          SERIAL PRIMARY KEY,
+        username    TEXT    UNIQUE NOT NULL,
         password    TEXT    NOT NULL,
         name        TEXT    NOT NULL,
         role        TEXT    NOT NULL DEFAULT 'student',
         bio         TEXT    DEFAULT '',
         avatar      TEXT    DEFAULT '',
         anon_name   TEXT,
+        year_group  TEXT    DEFAULT '',
         created_at  TEXT    NOT NULL
-    );
+    )""")
 
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS posts (
         id          TEXT    PRIMARY KEY,
         author_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -141,8 +153,9 @@ def init_db():
         flagged     INTEGER NOT NULL DEFAULT 0,
         flag_reason TEXT    DEFAULT '',
         created_at  TEXT    NOT NULL
-    );
+    )""")
 
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS comments (
         id          TEXT    PRIMARY KEY,
         post_id     TEXT    NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
@@ -151,35 +164,36 @@ def init_db():
         is_anon     INTEGER NOT NULL DEFAULT 0,
         flagged     INTEGER NOT NULL DEFAULT 0,
         created_at  TEXT    NOT NULL
-    );
+    )""")
 
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS reactions (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        id          SERIAL PRIMARY KEY,
         post_id     TEXT    REFERENCES posts(id)    ON DELETE CASCADE,
         comment_id  TEXT    REFERENCES comments(id) ON DELETE CASCADE,
         user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        emoji       TEXT    NOT NULL
-    );
-    CREATE UNIQUE INDEX IF NOT EXISTS ux_react_post ON reactions(post_id,    user_id, emoji);
-    CREATE UNIQUE INDEX IF NOT EXISTS ux_react_cmt  ON reactions(comment_id, user_id, emoji);
+        emoji       TEXT    NOT NULL,
+        UNIQUE (post_id, user_id, emoji),
+        UNIQUE (comment_id, user_id, emoji)
+    )""")
 
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS follows (
         follower_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         followee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         created_at  TEXT    NOT NULL,
         PRIMARY KEY (follower_id, followee_id)
-    );
+    )""")
 
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS conversations (
         id          TEXT    PRIMARY KEY,
         user_a      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         user_b      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         created_at  TEXT    NOT NULL
-    );
-    CREATE UNIQUE INDEX IF NOT EXISTS ux_conv ON conversations(
-        MIN(user_a,user_b), MAX(user_a,user_b)
-    );
+    )""")
 
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS messages (
         id              TEXT    PRIMARY KEY,
         conversation_id TEXT    NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
@@ -188,10 +202,11 @@ def init_db():
         is_anon         INTEGER NOT NULL DEFAULT 0,
         is_read         INTEGER NOT NULL DEFAULT 0,
         created_at      TEXT    NOT NULL
-    );
+    )""")
 
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS notifications (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        id          SERIAL PRIMARY KEY,
         user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         text        TEXT    NOT NULL,
         link        TEXT    DEFAULT '',
@@ -199,51 +214,68 @@ def init_db():
         is_read     INTEGER NOT NULL DEFAULT 0,
         actor_id    INTEGER,
         created_at  TEXT    NOT NULL
-    );
+    )""")
 
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS classes (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        id          SERIAL PRIMARY KEY,
         name        TEXT    NOT NULL,
-        subject     TEXT    NOT NULL DEFAULT \'\',
+        subject     TEXT    NOT NULL DEFAULT '',
         year_group  TEXT    NOT NULL,
         teacher_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         created_at  TEXT    NOT NULL
-    );
+    )""")
 
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS class_members (
         class_id    INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
         student_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         joined_at   TEXT    NOT NULL,
         PRIMARY KEY (class_id, student_id)
-    );
+    )""")
 
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS class_posts (
         id          TEXT    PRIMARY KEY,
         class_id    INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
         author_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        title       TEXT    NOT NULL DEFAULT \'\',
-        content     TEXT    NOT NULL DEFAULT \'\',
-        post_type   TEXT    NOT NULL DEFAULT \'note\',
-        file_path   TEXT    DEFAULT \'\',
-        file_name   TEXT    DEFAULT \'\',
+        title       TEXT    NOT NULL DEFAULT '',
+        content     TEXT    NOT NULL DEFAULT '',
+        post_type   TEXT    NOT NULL DEFAULT 'note',
+        file_path   TEXT    DEFAULT '',
+        file_name   TEXT    DEFAULT '',
         created_at  TEXT    NOT NULL
-    );
+    )""")
 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS class_replies (
+        id          TEXT    PRIMARY KEY,
+        post_id     TEXT    NOT NULL REFERENCES class_posts(id) ON DELETE CASCADE,
+        author_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        content     TEXT    NOT NULL DEFAULT '',
+        file_path   TEXT    DEFAULT '',
+        file_name   TEXT    DEFAULT '',
+        created_at  TEXT    NOT NULL
+    )""")
+
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS channels (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
-        name        TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+        id          SERIAL PRIMARY KEY,
+        name        TEXT    NOT NULL UNIQUE,
         description TEXT    DEFAULT '',
         creator_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         created_at  TEXT    NOT NULL
-    );
+    )""")
 
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS channel_follows (
         channel_id  INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
         user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         joined_at   TEXT    NOT NULL,
         PRIMARY KEY (channel_id, user_id)
-    );
+    )""")
 
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS channel_posts (
         id          TEXT    PRIMARY KEY,
         channel_id  INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
@@ -253,8 +285,9 @@ def init_db():
         media_type  TEXT    DEFAULT '',
         is_anon     INTEGER NOT NULL DEFAULT 0,
         created_at  TEXT    NOT NULL
-    );
+    )""")
 
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS channel_comments (
         id          TEXT    PRIMARY KEY,
         post_id     TEXT    NOT NULL REFERENCES channel_posts(id) ON DELETE CASCADE,
@@ -262,40 +295,22 @@ def init_db():
         content     TEXT    NOT NULL,
         is_anon     INTEGER NOT NULL DEFAULT 0,
         created_at  TEXT    NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS class_replies (
-        id          TEXT    PRIMARY KEY,
-        post_id     TEXT    NOT NULL REFERENCES class_posts(id) ON DELETE CASCADE,
-        author_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        content     TEXT    NOT NULL DEFAULT \'\',
-        file_path   TEXT    DEFAULT \'\',
-        file_name   TEXT    DEFAULT \'\',
-        created_at  TEXT    NOT NULL
-    );
-    """)
+    )""")
 
     # Seed super admin
-    existing = db.execute("SELECT id FROM users WHERE username='superadmin'").fetchone()
-    if not existing:
+    cur.execute("SELECT id FROM users WHERE username='superadmin'")
+    if not cur.fetchone():
         pw   = hashlib.sha256("SuperAdmin@EIA2024!".encode()).hexdigest()
         anon = f"Shadow_{secrets.token_hex(3).upper()}"
-        db.execute(
-            "INSERT INTO users (username,password,name,role,anon_name,created_at) VALUES (?,?,?,?,?,?)",
+        cur.execute(
+            "INSERT INTO users (username,password,name,role,anon_name,created_at) VALUES (%s,%s,%s,%s,%s,%s)",
             ("superadmin", pw, "Super Administrator", "super_admin", anon, _now())
         )
 
-    # Migrations for existing databases
-    cols = [r[1] for r in db.execute("PRAGMA table_info(comments)").fetchall()]
-    if "flagged" not in cols:
-        db.execute("ALTER TABLE comments ADD COLUMN flagged INTEGER NOT NULL DEFAULT 0")
-
-    ucols = [r[1] for r in db.execute("PRAGMA table_info(users)").fetchall()]
-    if "year_group" not in ucols:
-        db.execute("ALTER TABLE users ADD COLUMN year_group TEXT DEFAULT ''")
-
     db.commit()
+    cur.close()
     db.close()
+
 
 # ─── Utilities ────────────────────────────────────────────────────────────────
 def _now():
@@ -342,16 +357,26 @@ def get_anon_name(user_id: int) -> str:
     return name
 
 def save_upload(file) -> tuple[str, str]:
-    """Save uploaded file, return (filename, media_type)."""
+    """Upload file to Cloudinary, return (public_url, media_type)."""
     if not file or not file.filename:
         return "", ""
     if not _allowed(file.filename):
         return "", ""
-    ext  = file.filename.rsplit(".", 1)[1].lower()
-    name = f"{_uid()}.{ext}"
-    file.save(str(UPLOAD_DIR / name))
-    mtype = "video" if _is_video(name) else "image"
-    return name, mtype
+    ext   = file.filename.rsplit(".", 1)[1].lower()
+    mtype = "video" if ext in {"mp4","mov","webm"} else "image"
+    try:
+        resource_type = "video" if mtype == "video" else "image"
+        result = cloudinary.uploader.upload(
+            file,
+            folder        = "eia_voice",
+            resource_type = resource_type,
+            public_id     = _uid(),
+        )
+        url = result.get("secure_url", "")
+        return url, mtype
+    except Exception as e:
+        app.logger.error(f"Cloudinary upload failed: {e}")
+        return "", ""
 
 # ─── Auth helpers ─────────────────────────────────────────────────────────────
 def login_required(f):
@@ -1145,9 +1170,17 @@ def reels():
     return render_template("reels.html", reels=reels_list)
 
 
-@app.route("/media/<filename>")
+@app.route("/media/<path:filename>")
 def serve_media(filename):
-    return send_from_directory(str(UPLOAD_DIR), filename)
+    # Legacy route — Cloudinary files are served directly by URL.
+    # This handles any old relative filenames stored in DB before migration.
+    if filename.startswith("http"):
+        return redirect(filename)
+    # Try Cloudinary URL reconstruction for old records
+    cloud = os.environ.get("CLOUDINARY_CLOUD_NAME","")
+    if cloud:
+        return redirect(f"https://res.cloudinary.com/{cloud}/image/upload/eia_voice/{filename}")
+    abort(404)
 
 # ─── Error handlers ───────────────────────────────────────────────────────────
 @app.errorhandler(403)
@@ -1575,8 +1608,8 @@ def class_post(cid):
             ext  = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else "bin"
             safe = secure_filename(f.filename)
             fname = f"{_uid()}.{ext}"
-            f.save(str(UPLOAD_DIR / fname))
-            file_path = fname
+            url, _ = save_upload(f)
+            file_path = url
             file_name = safe
 
     if not content and not file_path:
@@ -1628,8 +1661,8 @@ def class_reply(cid, pid):
             ext   = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else "bin"
             safe  = secure_filename(f.filename)
             fname = f"{_uid()}.{ext}"
-            f.save(str(UPLOAD_DIR / fname))
-            file_path = fname
+            url, _ = save_upload(f)
+            file_path = url
             file_name = safe
 
     if not content and not file_path:
@@ -1738,10 +1771,6 @@ def delete_class_reply(rid):
     execute("DELETE FROM class_replies WHERE id=?", (rid,))
     return redirect(url_for("class_detail", cid=cid))
 
-
-@app.route("/media/<path:filename>")
-def serve_class_file(filename):
-    return send_from_directory(str(UPLOAD_DIR), filename)
 
 # ─── Entrypoint ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
