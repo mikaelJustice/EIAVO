@@ -1773,7 +1773,13 @@ def delete_class_reply(rid):
 
 
 # ─── Entrypoint ───────────────────────────────────────────────────────────────
+# Run init_db on startup regardless of how the app is launched (gunicorn or direct)
+with app.app_context():
+    try:
+        init_db()
+    except Exception as e:
+        print(f"[init_db] warning: {e}")
+
 if __name__ == "__main__":
-    init_db()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
