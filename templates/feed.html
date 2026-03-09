@@ -38,6 +38,24 @@
 
   /* Reveal comment modal */
   #revealCommentModal .reveal-row { border-bottom-color: #333; }
+
+.doc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #f0f4ff;
+  border: 1.5px solid #4a6fa5;
+  border-radius: 8px;
+  color: #4a6fa5;
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 0.95rem;
+  transition: background 0.15s;
+}
+.doc-link:hover { background: #dce8ff; }
+.doc-link svg { flex-shrink: 0; }
+
 </style>
 {% endblock %}
 
@@ -267,6 +285,11 @@
   <div class="post-media">
     {% if p.media_type == 'video' %}
     <video controls preload="metadata"><source src="{{ url_for('serve_media', filename=p.media) }}"></video>
+    {% elif p.media_type == 'document' %}
+    <a href="{{ url_for('serve_media', filename=p.media) }}" target="_blank" rel="noopener" class="doc-link">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <span>View Document</span>
+    </a>
     {% else %}
     <img src="{{ url_for('serve_media', filename=p.media) }}" alt="Post image" loading="lazy">
     {% endif %}

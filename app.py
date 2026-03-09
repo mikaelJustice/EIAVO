@@ -24,15 +24,7 @@ from flask import (
 from werkzeug.utils import secure_filename
 
 # ─── Config ───────────────────────────────────────────────────────────────────
-ALLOWED_EXTENSIONS = {
-    # Images
-    "png", "jpg", "jpeg", "gif", "webp",
-    # Video
-    "mp4", "mov", "webm",
-    # Documents
-    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
-    "txt", "zip", "rar", "7z"
-}
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "mp4", "mov", "webm", "pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "txt"}
 MAX_UPLOAD_BYTES   = 30 * 1024 * 1024  # 30 MB
 
 # Cloudinary configuration (set via env vars on Render)
@@ -110,14 +102,6 @@ def get_db():
 def close_db(exc=None):
     db = g.pop("db", None)
     if db:
-        try:
-            if exc:
-                db.rollback()
-            else:
-                # Already committed by execute(), but ensure no pending transaction
-                db.commit()
-        except Exception:
-            pass
         db.close()
 
 def _pg(sql):
@@ -127,29 +111,15 @@ def _pg(sql):
 def query(sql, args=(), one=False):
     db  = get_db()
     cur = db.cursor()
-    try:
-        cur.execute(_pg(sql), args)
-    except Exception as e:
-        # If transaction is aborted, rollback and reconnect
-        try:
-            db.rollback()
-        except:
-            pass
-        app.logger.error(f"Database query error: {e}")
-        raise
+    cur.execute(_pg(sql), args)
     rv = cur.fetchall()
     return (rv[0] if rv else None) if one else rv
 
 def execute(sql, args=()):
     db  = get_db()
     cur = db.cursor()
-    try:
-        cur.execute(_pg(sql), args)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        app.logger.error(f"Database execute error: {e}")
-        raise
+    cur.execute(_pg(sql), args)
+    db.commit()
     return cur
 
 def init_db():
@@ -358,6 +328,9 @@ def _allowed(filename: str) -> bool:
 def _is_video(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in {"mp4","mov","webm"}
 
+def _is_document(filename: str) -> bool:
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in {"pdf","doc","docx","ppt","pptx","xls","xlsx","txt"}
+
 def _fmt_time(ts: str) -> str:
     try:
         dt = datetime.fromisoformat(ts.replace("Z",""))
@@ -387,41 +360,28 @@ def get_anon_name(user_id: int) -> str:
     return name
 
 def save_upload(file) -> tuple[str, str]:
-    """Upload file to Cloudinary, return (secure_url, media_type)."""
+    """Upload file to Cloudinary, return (public_url, media_type)."""
     if not file or not file.filename:
         return "", ""
     if not _allowed(file.filename):
         return "", ""
     ext   = file.filename.rsplit(".", 1)[1].lower()
-    
-    # Determine media type and resource type
-    if ext in {"mp4", "mov", "webm"}:
+    if ext in {"mp4","mov","webm"}:
         mtype = "video"
-        resource_type = "video"
-    elif ext in {"pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "zip", "rar", "7z"}:
+    elif ext in {"pdf","doc","docx","ppt","pptx","xls","xlsx","txt"}:
         mtype = "document"
-        resource_type = "raw"
-    else:  # images
+    else:
         mtype = "image"
-        resource_type = "image"
-    
     try:
-        # Include extension in public_id to preserve file format on download
-        public_id_value = f"{_uid()}.{ext}"
-        
-        upload_params = {
-            "folder": "eia_voice",
-            "resource_type": resource_type,
-            "public_id": public_id_value,
-        }
-        
-        # Only add format parameter for image/video, not for raw files
-        if resource_type != "raw":
-            upload_params["format"] = ext
-        
-        result = cloudinary.uploader.upload(file, **upload_params)
-        
-        # Return the secure_url directly from Cloudinary
+        # Cloudinary resource_type: video, image, or raw (for documents)
+        resource_type = "video" if mtype == "video" else ("raw" if mtype == "document" else "image")
+        result = cloudinary.uploader.upload(
+            file,
+            folder        = "eia_voice",
+            resource_type = resource_type,
+            public_id     = _uid(),
+            use_filename  = False,
+        )
         url = result.get("secure_url", "")
         return url, mtype
     except Exception as e:
@@ -614,10 +574,6 @@ def feed():
 def create_post():
     user    = current_user()
     content = request.form.get("content","").strip()
-    if not content:
-        flash("Post cannot be empty.", "error")
-        return redirect(url_for("feed"))
-
     is_anon   = bool(request.form.get("is_anon"))
     recipient = request.form.get("recipient", "all_school")
     role      = user["role"]
@@ -640,6 +596,11 @@ def create_post():
         f = request.files["media"]
         if f and f.filename:
             media_path, media_type = save_upload(f)
+
+    # Must have content OR an uploaded file
+    if not content and not media_path:
+        flash("Post cannot be empty.", "error")
+        return redirect(url_for("feed"))
 
     pid = _uid()
     execute(
@@ -1222,18 +1183,13 @@ def reels():
 
 @app.route("/media/<path:filename>")
 def serve_media(filename):
-    # Cloudinary URLs are served directly
+    # Legacy route — Cloudinary files are served directly by URL.
+    # This handles any old relative filenames stored in DB before migration.
     if filename.startswith("http"):
         return redirect(filename)
-    # Legacy support for relative filenames from old migrations
+    # Try Cloudinary URL reconstruction for old records
     cloud = os.environ.get("CLOUDINARY_CLOUD_NAME","")
     if cloud:
-        # Check if it's likely a document/raw file by extension
-        if "." in filename:
-            ext = filename.rsplit(".", 1)[1].lower()
-            if ext in {"pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "zip", "rar", "7z"}:
-                return redirect(f"https://res.cloudinary.com/{cloud}/raw/upload/eia_voice/{filename}")
-        # Default to image/video
         return redirect(f"https://res.cloudinary.com/{cloud}/image/upload/eia_voice/{filename}")
     abort(404)
 
