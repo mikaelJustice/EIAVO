@@ -602,7 +602,7 @@ def create_post():
     if recipient == "senate" and role == "student":
         is_anon = False
 
-    media_path, media_type = "", ""
+    media_path, media_type, media_name = "", "", ""
     if "media" in request.files:
         f = request.files["media"]
         if f and f.filename:
@@ -1208,52 +1208,37 @@ def serve_media(filename):
 @app.route("/download")
 @login_required
 def download_media():
-    """Proxy a document download with correct filename and content-type."""
-    import mimetypes, urllib.request
+    """Proxy document download - fetch from Cloudinary, serve with correct headers."""
+    import mimetypes
     from urllib.parse import unquote
+    import urllib.request as _urlreq
     url       = unquote(request.args.get("url", ""))
     orig_name = unquote(request.args.get("name", "document"))
     if not url.startswith("http"):
-        abort(404)
+        abort(400)
+    # Determine MIME type from filename extension
+    ext = orig_name.rsplit(".", 1)[-1].lower() if "." in orig_name else ""
+    mime_map = {
+        "pdf":  "application/pdf",
+        "doc":  "application/msword",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "ppt":  "application/vnd.ms-powerpoint",
+        "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "xls":  "application/vnd.ms-excel",
+        "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "txt":  "text/plain",
+    }
+    mime = mime_map.get(ext, "application/octet-stream")
     try:
-        # Generate a signed Cloudinary URL to bypass auth restrictions
-        import cloudinary.utils
-        # Build signed URL using Cloudinary SDK
-        api_secret = os.environ.get("CLOUDINARY_API_SECRET", "")
-        api_key    = os.environ.get("CLOUDINARY_API_KEY", "")
-        cloud_name = os.environ.get("CLOUDINARY_CLOUD_NAME", "")
-        # Use the URL directly but with auth header via API key/secret
-        import base64
-        credentials = base64.b64encode(f"{api_key}:{api_secret}".encode()).decode()
-        req = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": "Mozilla/5.0",
-                "Authorization": f"Basic {credentials}"
-            }
-        )
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        req = _urlreq.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with _urlreq.urlopen(req, timeout=30) as resp:
             data = resp.read()
-        mime, _ = mimetypes.guess_type(orig_name)
-        if not mime:
-            # Detect from actual bytes
-            if data[:4] == b'%PDF':
-                mime = "application/pdf"
-            elif data[:2] == b'PK':
-                ext = orig_name.rsplit(".", 1)[-1].lower() if "." in orig_name else ""
-                mime_map = {
-                    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                }
-                mime = mime_map.get(ext, "application/octet-stream")
-            else:
-                mime = "application/octet-stream"
-        from flask import Response as FlaskResponse
-        resp = FlaskResponse(data, mimetype=mime)
-        resp.headers["Content-Disposition"] = f'attachment; filename="{orig_name}"' 
-        resp.headers["Content-Length"] = len(data)
-        return resp
+        from flask import Response as FR
+        r = FR(data, mimetype=mime)
+        r.headers["Content-Disposition"] = f'attachment; filename="{orig_name}"' 
+        r.headers["Content-Length"] = str(len(data))
+        r.headers["Cache-Control"] = "no-cache"
+        return r
     except Exception as e:
         app.logger.error(f"Download proxy error: {e}")
         abort(500)
@@ -1441,7 +1426,7 @@ def channel_post(cid):
     content = request.form.get("content", "").strip()
     is_anon = bool(request.form.get("is_anon"))
 
-    media_path, media_type = "", ""
+    media_path, media_type, media_name = "", "", ""
     if "media" in request.files:
         f = request.files["media"]
         if f and f.filename:
