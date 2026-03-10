@@ -1296,11 +1296,8 @@ def test_download():
 @app.route("/download")
 @login_required
 def download_media():
-    """Proxy document download - fetches from Cloudinary and serves with correct headers."""
     from urllib.parse import unquote
     import urllib.request as _urlreq
-    import re as _re
-    import cloudinary.utils
 
     url       = unquote(request.args.get("url", ""))
     orig_name = unquote(request.args.get("name", "document"))
@@ -1322,25 +1319,11 @@ def download_media():
     mime = mime_map.get(ext, "application/octet-stream")
 
     try:
-        # Extract public_id: everything after /upload/v12345/
-        m = _re.search(r'/upload/(?:v\d+/)?(.+?)(?:\?|$)', url)
-        if not m:
-            app.logger.error(f"Cannot parse public_id from: {url}")
-            abort(500)
-        public_id = m.group(1)
-        app.logger.info(f"Downloading public_id={public_id} name={orig_name}")
-
-        # Generate signed URL using Cloudinary SDK
-        signed_url, _ = cloudinary.utils.cloudinary_url(
-            public_id,
-            resource_type = "raw",
-            type          = "upload",
-            sign_url      = True,
-            secure        = True,
-        )
-
-        req = _urlreq.Request(signed_url, headers={"User-Agent": "Mozilla/5.0"})
+        # Fetch directly - raw files with extension in public_id are publicly accessible
+        req = _urlreq.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with _urlreq.urlopen(req, timeout=30) as resp:
+            # Check if we got redirected to an error page
+            actual_url = resp.geturl()
             data = resp.read()
 
         from flask import Response as FR
@@ -1351,11 +1334,8 @@ def download_media():
         return r
 
     except Exception as e:
-        import traceback
-        app.logger.error(f"Download proxy error: {type(e).__name__}: {e}\n{traceback.format_exc()}")
-        # Return error details as JSON so we can see what's wrong
-        from flask import jsonify
-        return jsonify({"error": str(e), "type": type(e).__name__, "url": url, "public_id": locals().get("public_id","?"), "signed_url": locals().get("signed_url","?")}), 500
+        # Return the actual error as plain text so we can see it
+        return str(e), 500, {"Content-Type": "text/plain"}
 
 
 @app.route("/channels")
