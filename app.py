@@ -1140,6 +1140,50 @@ def follow(uid):
     return jsonify({"following": following, "count": count})
 
 # ─── People ───────────────────────────────────────────────────────────────────
+# ─── Global Search ─────────────────────────────────────────────────────────────
+@app.route("/search")
+@login_required
+def global_search():
+    from flask import jsonify
+    viewer = current_user()
+    q = request.args.get("q", "").strip()
+    if not q or len(q) < 2:
+        return render_template("search.html", q="", users=[], channels=[], posts=[])
+
+    like = f"%{q.lower()}%"
+
+    users = query(
+        """SELECT u.id, u.username, u.role, u.avatar, u.year_group,
+                  (SELECT COUNT(*) FROM follows WHERE followee_id=u.id) as followers,
+                  (SELECT 1 FROM follows WHERE follower_id=? AND followee_id=u.id) as i_follow
+           FROM users u WHERE u.id!=? AND (LOWER(u.username) LIKE ? OR LOWER(u.year_group) LIKE ?)
+           ORDER BY followers DESC LIMIT 12""",
+        (viewer["id"], viewer["id"], like, like)
+    )
+
+    channels = query(
+        """SELECT ch.id, ch.name, ch.description, ch.creator_id, u.username as creator_name,
+                  (SELECT COUNT(*) FROM channel_follows WHERE channel_id=ch.id) as follower_count,
+                  (SELECT COUNT(*) FROM channel_posts WHERE channel_id=ch.id) as post_count,
+                  EXISTS(SELECT 1 FROM channel_follows WHERE channel_id=ch.id AND user_id=?) as is_following
+           FROM channels ch JOIN users u ON ch.creator_id=u.id
+           WHERE LOWER(ch.name) LIKE ? OR LOWER(ch.description) LIKE ?
+           ORDER BY follower_count DESC LIMIT 12""",
+        (viewer["id"], like, like)
+    )
+
+    posts = query(
+        """SELECT p.id, p.content, p.created_at, p.is_anon, p.author_id,
+                  u.username, u.anon_name, u.avatar
+           FROM posts p JOIN users u ON p.author_id=u.id
+           WHERE LOWER(p.content) LIKE ? AND p.is_anon=0
+           ORDER BY p.created_at DESC LIMIT 10""",
+        (like,)
+    )
+
+    return render_template("search.html", q=q, users=users, channels=channels, posts=posts)
+
+
 @app.route("/people")
 @login_required
 def people():
