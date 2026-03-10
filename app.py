@@ -1399,6 +1399,7 @@ def channel_detail(cid):
         posts_with_comments.append({
             "id": p["id"], "content": p["content"],
             "media_path": p["media_path"], "media_type": p["media_type"],
+            "media_name": p.get("media_name", "") if hasattr(p, "get") else (p["media_name"] if "media_name" in p.keys() else ""),
             "display": display, "avatar": avatar,
             "author_role": p["author_role"], "author_id": p["author_id"],
             "is_anon": is_anon,
@@ -1407,7 +1408,7 @@ def channel_detail(cid):
             "comments": comments_out,
         })
 
-    return render_template("channel_detail.html", ch=ch, posts=posts_with_comments)
+    return render_template("channel_detail.html", ch=ch, posts=posts_with_comments, cu=user)
 
 
 @app.route("/channels/<int:cid>/follow", methods=["POST"])
