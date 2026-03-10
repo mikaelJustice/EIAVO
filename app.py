@@ -488,6 +488,33 @@ def init_db():
         created_at  TEXT NOT NULL
     )""")
 
+    # ── Yearbook ──────────────────────────────────────────────────────────────
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS yearbook_years (
+        id          SERIAL PRIMARY KEY,
+        year_group  TEXT NOT NULL UNIQUE,
+        title       TEXT NOT NULL DEFAULT '',
+        subtitle    TEXT NOT NULL DEFAULT '',
+        class_teacher TEXT NOT NULL DEFAULT '',
+        message     TEXT NOT NULL DEFAULT '',
+        achievements TEXT NOT NULL DEFAULT '',
+        cover_color TEXT NOT NULL DEFAULT '#1a2e5a',
+        updated_at  TEXT NOT NULL,
+        updated_by  INTEGER REFERENCES users(id)
+    )""")
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS yearbook_entries (
+        id          SERIAL PRIMARY KEY,
+        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        year_group  TEXT NOT NULL,
+        quote       TEXT NOT NULL DEFAULT '',
+        ambition    TEXT NOT NULL DEFAULT '',
+        memory      TEXT NOT NULL DEFAULT '',
+        nickname    TEXT NOT NULL DEFAULT '',
+        updated_at  TEXT NOT NULL
+    )""")
+
     migrations = [
         "ALTER TABLE posts          ADD COLUMN IF NOT EXISTS media_name  TEXT DEFAULT ''",
         "ALTER TABLE messages       ADD COLUMN IF NOT EXISTS voice_url   TEXT DEFAULT ''",
@@ -1144,71 +1171,93 @@ def follow(uid):
 @app.route("/search")
 @login_required
 def global_search():
-    from flask import jsonify
+    return redirect(url_for("explore"))
+
+@app.route("/explore")
+@login_required
+def explore():
     viewer = current_user()
-    q = request.args.get("q", "").strip()
-    if not q or len(q) < 2:
-        return render_template("search.html", q="", users=[], channels=[], posts=[])
+    q    = request.args.get("q", "").strip()
+    tab  = request.args.get("tab", "people")  # people | channels | posts
 
-    like = f"%{q.lower()}%"
+    like = f"%{q.lower()}%" if q else "%"
 
-    users = query(
-        """SELECT u.id, u.username, u.role, u.avatar, u.year_group,
-                  (SELECT COUNT(*) FROM follows WHERE followee_id=u.id) as followers,
-                  (SELECT 1 FROM follows WHERE follower_id=? AND followee_id=u.id) as i_follow
-           FROM users u WHERE u.id!=? AND (LOWER(u.username) LIKE ? OR LOWER(u.year_group) LIKE ?)
-           ORDER BY followers DESC LIMIT 12""",
-        (viewer["id"], viewer["id"], like, like)
-    )
+    # ── People ──
+    if q:
+        users = query(
+            """SELECT u.id, u.username, u.role, u.avatar, u.year_group, u.bio,
+                      (SELECT COUNT(*) FROM follows WHERE followee_id=u.id) as followers,
+                      (SELECT 1 FROM follows WHERE follower_id=? AND followee_id=u.id) as i_follow
+               FROM users u WHERE u.id!=? AND (LOWER(u.username) LIKE ? OR LOWER(u.year_group) LIKE ?)
+               ORDER BY followers DESC LIMIT 30""",
+            (viewer["id"], viewer["id"], like, like)
+        )
+    else:
+        users = query(
+            """SELECT u.id, u.username, u.role, u.avatar, u.year_group, u.bio,
+                      (SELECT COUNT(*) FROM follows WHERE followee_id=u.id) as followers,
+                      (SELECT 1 FROM follows WHERE follower_id=? AND followee_id=u.id) as i_follow
+               FROM users u WHERE u.id!=?
+               ORDER BY followers DESC, u.username LIMIT 50""",
+            (viewer["id"], viewer["id"])
+        )
 
-    channels = query(
-        """SELECT ch.id, ch.name, ch.description, ch.creator_id, u.username as creator_name,
-                  (SELECT COUNT(*) FROM channel_follows WHERE channel_id=ch.id) as follower_count,
-                  (SELECT COUNT(*) FROM channel_posts WHERE channel_id=ch.id) as post_count,
-                  EXISTS(SELECT 1 FROM channel_follows WHERE channel_id=ch.id AND user_id=?) as is_following
-           FROM channels ch JOIN users u ON ch.creator_id=u.id
-           WHERE LOWER(ch.name) LIKE ? OR LOWER(ch.description) LIKE ?
-           ORDER BY follower_count DESC LIMIT 12""",
-        (viewer["id"], like, like)
-    )
+    # ── Channels ──
+    if q:
+        channels = query(
+            """SELECT ch.id, ch.name, ch.description, u.username as creator_name,
+                      (SELECT COUNT(*) FROM channel_follows WHERE channel_id=ch.id) as follower_count,
+                      (SELECT COUNT(*) FROM channel_posts   WHERE channel_id=ch.id) as post_count,
+                      EXISTS(SELECT 1 FROM channel_follows WHERE channel_id=ch.id AND user_id=?) as is_following
+               FROM channels ch JOIN users u ON ch.creator_id=u.id
+               WHERE LOWER(ch.name) LIKE ? OR LOWER(COALESCE(ch.description,'')) LIKE ?
+               ORDER BY follower_count DESC LIMIT 30""",
+            (viewer["id"], like, like)
+        )
+    else:
+        channels = query(
+            """SELECT ch.id, ch.name, ch.description, u.username as creator_name,
+                      (SELECT COUNT(*) FROM channel_follows WHERE channel_id=ch.id) as follower_count,
+                      (SELECT COUNT(*) FROM channel_posts   WHERE channel_id=ch.id) as post_count,
+                      EXISTS(SELECT 1 FROM channel_follows WHERE channel_id=ch.id AND user_id=?) as is_following
+               FROM channels ch JOIN users u ON ch.creator_id=u.id
+               ORDER BY follower_count DESC, ch.created_at DESC LIMIT 50""",
+            (viewer["id"],)
+        )
 
-    posts = query(
-        """SELECT p.id, p.content, p.created_at, p.is_anon, p.author_id,
-                  u.username, u.anon_name, u.avatar
-           FROM posts p JOIN users u ON p.author_id=u.id
-           WHERE LOWER(p.content) LIKE ? AND p.is_anon=0
-           ORDER BY p.created_at DESC LIMIT 10""",
-        (like,)
-    )
+    # ── Posts (public, non-anon only) ──
+    if q:
+        posts = query(
+            """SELECT p.id, p.content, p.created_at, p.media_type, p.media_path,
+                      u.username, u.avatar,
+                      (SELECT COUNT(*) FROM reactions WHERE post_id=p.id AND emoji='❤️') as likes,
+                      (SELECT COUNT(*) FROM comments  WHERE post_id=p.id) as comment_count
+               FROM posts p JOIN users u ON p.author_id=u.id
+               WHERE LOWER(p.content) LIKE ? AND p.is_anon=0
+               ORDER BY p.created_at DESC LIMIT 20""",
+            (like,)
+        )
+    else:
+        posts = query(
+            """SELECT p.id, p.content, p.created_at, p.media_type, p.media_path,
+                      u.username, u.avatar,
+                      (SELECT COUNT(*) FROM reactions WHERE post_id=p.id AND emoji='❤️') as likes,
+                      (SELECT COUNT(*) FROM comments  WHERE post_id=p.id) as comment_count
+               FROM posts p JOIN users u ON p.author_id=u.id
+               WHERE p.is_anon=0
+               ORDER BY p.created_at DESC LIMIT 40""",
+            ()
+        )
 
-    return render_template("search.html", q=q, users=users, channels=channels, posts=posts)
+    return render_template("explore.html", q=q, tab=tab,
+                           users=users, channels=channels, posts=posts)
 
 
 @app.route("/people")
 @login_required
 def people():
-    viewer = current_user()
-    search = request.args.get("q","").strip()
-    if search:
-        users = query(
-            """SELECT u.*,
-               (SELECT COUNT(*) FROM follows WHERE followee_id=u.id) as followers,
-               (SELECT COUNT(*) FROM follows WHERE follower_id=u.id) as following_ct,
-               (SELECT 1     FROM follows WHERE follower_id=? AND followee_id=u.id) as i_follow
-               FROM users u WHERE u.id!=? AND (LOWER(u.name) LIKE ? OR LOWER(u.username) LIKE ?)
-               ORDER BY u.username""",
-            (viewer["id"], viewer["id"], f"%{search.lower()}%", f"%{search.lower()}%")
-        )
-    else:
-        users = query(
-            """SELECT u.*,
-               (SELECT COUNT(*) FROM follows WHERE followee_id=u.id) as followers,
-               (SELECT COUNT(*) FROM follows WHERE follower_id=u.id) as following_ct,
-               (SELECT 1     FROM follows WHERE follower_id=? AND followee_id=u.id) as i_follow
-               FROM users u WHERE u.id!=? ORDER BY u.username""",
-            (viewer["id"], viewer["id"])
-        )
-    return render_template("people.html", users=users, search=search)
+    q = request.args.get("q", "")
+    return redirect(url_for("explore", q=q, tab="people") if q else url_for("explore", tab="people"))
 
 # ─── Notifications ────────────────────────────────────────────────────────────
 @app.route("/notifications")
@@ -2254,6 +2303,129 @@ def delete_class_reply(rid):
 
 
 # ─── Entrypoint ───────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# YEARBOOK
+# ═══════════════════════════════════════════════════════════════════════════════
+
+YEARBOOK_YEARS = ["Year 11", "Year 13"]
+
+@app.route("/yearbook")
+@login_required
+def yearbook():
+    user = current_user()
+    yrs = {}
+    for yg in YEARBOOK_YEARS:
+        meta = query("SELECT * FROM yearbook_years WHERE year_group=?", (yg,), one=True)
+        count = query("SELECT COUNT(*) as c FROM users WHERE year_group=? AND role='student'", (yg,), one=True)
+        yrs[yg] = {"meta": meta, "count": count["c"] if count else 0}
+    return render_template("yearbook.html", yrs=yrs, YEARBOOK_YEARS=YEARBOOK_YEARS)
+
+
+@app.route("/yearbook/<path:year_group>")
+@login_required
+def yearbook_detail(year_group):
+    if year_group not in YEARBOOK_YEARS:
+        abort(404)
+    user = current_user()
+    meta = query("SELECT * FROM yearbook_years WHERE year_group=?", (year_group,), one=True)
+
+    students = query(
+        """SELECT u.id, u.username, u.avatar, u.bio, u.year_group,
+                  ye.quote, ye.ambition, ye.memory, ye.nickname
+           FROM users u
+           LEFT JOIN yearbook_entries ye ON ye.user_id=u.id AND ye.year_group=?
+           WHERE u.year_group=? AND u.role='student'
+           ORDER BY u.username""",
+        (year_group, year_group)
+    )
+    is_editor = user["role"] in ("admin", "super_admin")
+    my_entry  = query("SELECT * FROM yearbook_entries WHERE user_id=? AND year_group=?",
+                      (user["id"], year_group), one=True)
+    return render_template("yearbook_detail.html",
+                           year_group=year_group, meta=meta,
+                           students=students, is_editor=is_editor,
+                           my_entry=my_entry, cu=user)
+
+
+@app.route("/yearbook/<path:year_group>/edit-meta", methods=["POST"])
+@login_required
+@roles_required("admin", "super_admin")
+def yearbook_edit_meta(year_group):
+    if year_group not in YEARBOOK_YEARS:
+        abort(404)
+    title        = request.form.get("title", "").strip()
+    subtitle     = request.form.get("subtitle", "").strip()
+    class_teacher = request.form.get("class_teacher", "").strip()
+    message      = request.form.get("message", "").strip()
+    achievements = request.form.get("achievements", "").strip()
+    cover_color  = request.form.get("cover_color", "#1a2e5a").strip()
+
+    existing = query("SELECT id FROM yearbook_years WHERE year_group=?", (year_group,), one=True)
+    if existing:
+        execute("""UPDATE yearbook_years SET title=?,subtitle=?,class_teacher=?,message=?,
+                   achievements=?,cover_color=?,updated_at=?,updated_by=? WHERE year_group=?""",
+                (title, subtitle, class_teacher, message, achievements, cover_color,
+                 _now(), current_user()["id"], year_group))
+    else:
+        execute("""INSERT INTO yearbook_years (year_group,title,subtitle,class_teacher,message,
+                   achievements,cover_color,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?)""",
+                (year_group, title, subtitle, class_teacher, message, achievements,
+                 cover_color, _now(), current_user()["id"]))
+    flash("Yearbook details updated.", "success")
+    return redirect(url_for("yearbook_detail", year_group=year_group))
+
+
+@app.route("/yearbook/<path:year_group>/edit-entry", methods=["POST"])
+@login_required
+def yearbook_edit_entry(year_group):
+    if year_group not in YEARBOOK_YEARS:
+        abort(404)
+    user   = current_user()
+    # Students edit their own; admins can edit anyone's
+    target_uid = request.form.get("user_id", str(user["id"])).strip()
+    if str(user["id"]) != target_uid and user["role"] not in ("admin", "super_admin"):
+        abort(403)
+    target_uid = int(target_uid)
+
+    quote    = request.form.get("quote", "").strip()[:200]
+    ambition = request.form.get("ambition", "").strip()[:200]
+    memory   = request.form.get("memory", "").strip()[:200]
+    nickname = request.form.get("nickname", "").strip()[:60]
+
+    existing = query("SELECT id FROM yearbook_entries WHERE user_id=? AND year_group=?",
+                     (target_uid, year_group), one=True)
+    if existing:
+        execute("""UPDATE yearbook_entries SET quote=?,ambition=?,memory=?,nickname=?,updated_at=?
+                   WHERE user_id=? AND year_group=?""",
+                (quote, ambition, memory, nickname, _now(), target_uid, year_group))
+    else:
+        execute("""INSERT INTO yearbook_entries (user_id,year_group,quote,ambition,memory,nickname,updated_at)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (target_uid, year_group, quote, ambition, memory, nickname, _now()))
+    flash("Entry saved.", "success")
+    return redirect(url_for("yearbook_detail", year_group=year_group))
+
+
+@app.route("/yearbook/<path:year_group>/print")
+@login_required
+@roles_required("admin", "super_admin")
+def yearbook_print(year_group):
+    if year_group not in YEARBOOK_YEARS:
+        abort(404)
+    meta = query("SELECT * FROM yearbook_years WHERE year_group=?", (year_group,), one=True)
+    students = query(
+        """SELECT u.id, u.username, u.avatar, u.bio, u.year_group,
+                  ye.quote, ye.ambition, ye.memory, ye.nickname
+           FROM users u
+           LEFT JOIN yearbook_entries ye ON ye.user_id=u.id AND ye.year_group=?
+           WHERE u.year_group=? AND u.role='student'
+           ORDER BY u.username""",
+        (year_group, year_group)
+    )
+    return render_template("yearbook_print.html",
+                           year_group=year_group, meta=meta, students=students)
+
+
 # Run init_db on startup regardless of how the app is launched (gunicorn or direct)
 with app.app_context():
     try:

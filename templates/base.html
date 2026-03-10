@@ -24,6 +24,7 @@
     <symbol id="ic-flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></symbol>
     <symbol id="ic-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
     <symbol id="ic-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></symbol>
+    <symbol id="ic-yearbook" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="13" y2="11"/></symbol>
     <symbol id="ic-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
     <symbol id="ic-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
     <symbol id="ic-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></symbol>
@@ -335,7 +336,7 @@
 {% if cu %}
 <div class="mobile-topbar" id="mobileTopbar">
   <span class="mobile-topbar-logo">EIA Voice</span>
-  <a href="{{ url_for('global_search') }}" class="mobile-topbar-btn" title="Search">
+  <a href="{{ url_for('explore') }}" class="mobile-topbar-btn" title="Search">
     <svg width="18" height="18"><use href="#ic-search"/></svg>
   </a>
   <a href="{{ url_for('notifications') }}" class="mobile-topbar-btn" style="position:relative" title="Notifications">
@@ -351,7 +352,7 @@
   <a href="{{ url_for('feed') }}" class="nav-link {% if request.endpoint=='feed' %}active{% endif %}">
     <svg class="ic" width="22" height="22"><use href="#ic-home"/></svg> Home
   </a>
-  <a href="{{ url_for('people') }}" class="nav-link {% if request.endpoint=='people' %}active{% endif %}">
+  <a href="{{ url_for('explore') }}" class="nav-link {% if request.endpoint in ('people','explore','global_search') %}active{% endif %}">
     <svg class="ic" width="22" height="22"><use href="#ic-search"/></svg> Explore
   </a>
   <a href="{{ url_for('notifications') }}" class="nav-link {% if request.endpoint=='notifications' %}active{% endif %}">
@@ -368,11 +369,11 @@
   <a href="{{ url_for('classes') }}" class="nav-link {% if request.endpoint in ('classes','class_detail') %}active{% endif %}">
     <svg class="ic" width="22" height="22"><use href="#ic-class"/></svg> Classes
   </a>
-  <a href="{{ url_for('global_search') }}" class="nav-link {% if request.endpoint=='global_search' %}active{% endif %}">
-    <svg class="ic" width="22" height="22"><use href="#ic-search"/></svg> Search
-  </a>
   <a href="{{ url_for('channels') }}" class="nav-link {% if request.endpoint in ('channels','channel_detail') %}active{% endif %}">
     <svg class="ic" width="22" height="22"><use href="#ic-channel"/></svg> Channels
+  </a>
+  <a href="{{ url_for('yearbook') }}" class="nav-link {% if request.endpoint in ('yearbook','yearbook_detail') %}active{% endif %}">
+    <svg class="ic" width="22" height="22"><use href="#ic-yearbook"/></svg> Yearbook
   </a>
   <a href="{{ url_for('events') }}" class="nav-link {% if request.endpoint=='events' %}active{% endif %}">
     <svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Events
@@ -425,6 +426,10 @@
         <div class="mdi"><svg width="18" height="18"><use href="#ic-channel"/></svg></div>
         Channels
       </a>
+      <a href="{{ url_for('yearbook') }}" class="more-drawer-item" onclick="closeMoreDrawer()">
+        <div class="mdi"><svg width="18" height="18"><use href="#ic-yearbook"/></svg></div>
+        Yearbook
+      </a>
       <a href="{{ url_for('events') }}" class="more-drawer-item" onclick="closeMoreDrawer()">
         <div class="mdi"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
         Events
@@ -441,13 +446,9 @@
         <div class="mdi"><svg width="18" height="18"><use href="#ic-comment"/></svg></div>
         Shoutouts
       </a>
-      <a href="{{ url_for('people') }}" class="more-drawer-item" onclick="closeMoreDrawer()">
-        <div class="mdi"><svg width="18" height="18"><use href="#ic-user"/></svg></div>
-        People
-      </a>
-      <a href="{{ url_for('global_search') }}" class="more-drawer-item" onclick="closeMoreDrawer()">
+      <a href="{{ url_for('explore') }}" class="more-drawer-item" onclick="closeMoreDrawer()">
         <div class="mdi"><svg width="18" height="18"><use href="#ic-search"/></svg></div>
-        Search
+        Explore
       </a>
       <a href="{{ url_for('settings') }}" class="more-drawer-item" onclick="closeMoreDrawer()">
         <div class="mdi"><svg width="18" height="18"><use href="#ic-settings"/></svg></div>

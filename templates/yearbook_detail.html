@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}{{ year_group }} Yearbook{% endblock %}
+{% block extra_head %}
+<style>
+/* ── Header ── */
+.yb-hd{border-radius:var(--r);overflow:hidden;margin-bottom:24px;box-shadow:0 4px 16px rgba(0,0,0,.1)}
+.yb-hd-cover{min-height:180px;padding:32px;display:flex;flex-direction:column;justify-content:flex-end;position:relative;overflow:hidden}
+.yb-hd-cover::before{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,transparent 30%,rgba(0,0,0,.5))}
+.yb-hd-cover-deco{position:absolute;top:-40px;right:-40px;width:240px;height:240px;border-radius:50%;border:2px solid rgba(255,255,255,.12)}
+.yb-hd-cover-deco2{position:absolute;bottom:-60px;left:10px;width:160px;height:160px;border-radius:50%;border:2px solid rgba(255,255,255,.08)}
+.yb-hd-year{font-size:44px;font-weight:900;font-family:var(--font-h);color:#fff;letter-spacing:-.03em;position:relative;text-shadow:0 2px 8px rgba(0,0,0,.4)}
+.yb-hd-title{font-size:15px;font-weight:700;color:rgba(255,255,255,.85);position:relative;margin-top:2px}
+.yb-hd-body{background:#fff;padding:20px 24px;display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+.yb-hd-msg{flex:1;min-width:200px}
+.yb-hd-msg h3{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin-bottom:6px}
+.yb-hd-msg p{font-size:14px;line-height:1.6;color:var(--ink)}
+.yb-hd-stats{display:flex;gap:24px;flex-shrink:0}
+.yb-stat{text-align:center}
+.yb-stat-n{font-size:28px;font-weight:900;font-family:var(--font-h);color:var(--navy)}
+.yb-stat-l{font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em}
+/* ── Achievements ── */
+.yb-achievements{background:var(--blue-l);border:1.5px solid var(--navy);border-radius:var(--r);padding:16px 20px;margin-bottom:20px}
+.yb-achievements h3{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--navy);margin-bottom:8px}
+.yb-achievements p{font-size:14px;line-height:1.6;color:var(--ink);white-space:pre-line}
+/* ── Admin edit panel ── */
+.yb-edit-panel{background:#fff;border:1.5px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:24px}
+.yb-edit-panel summary{font-weight:800;font-size:14px;cursor:pointer;padding:4px 0;color:var(--navy)}
+.yb-edit-panel summary::-webkit-details-marker{color:var(--navy)}
+.yb-edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+@media(max-width:600px){.yb-edit-grid{grid-template-columns:1fr}}
+/* ── Students grid ── */
+.yb-students{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}
+@media(max-width:520px){.yb-students{grid-template-columns:repeat(2,1fr);gap:10px}}
+.yb-card{background:#fff;border:1.5px solid var(--border);border-radius:var(--r);overflow:hidden;transition:box-shadow .15s,transform .15s}
+.yb-card:hover{box-shadow:var(--shadow);transform:translateY(-2px)}
+.yb-card-photo{height:140px;background:var(--blue-l);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.yb-card-photo img{width:100%;height:100%;object-fit:cover;object-position:top}
+.yb-card-photo-init{font-size:48px;font-weight:900;font-family:var(--font-h);color:var(--navy);opacity:.3}
+.yb-card-nickname{position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:10px;font-weight:700;color:#fff;background:rgba(0,0,0,.45);padding:2px 8px}
+.yb-card-body{padding:12px 14px}
+.yb-card-name{font-weight:800;font-size:13px;color:var(--ink)}
+.yb-card-bio{font-size:11px;color:var(--ink3);margin-top:3px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.yb-card-quote{font-size:11px;color:var(--ink2);font-style:italic;margin-top:6px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.4}
+.yb-card-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.yb-card-tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;background:#f0f2f5;color:var(--ink2)}
+.yb-card-edit{margin-top:10px;font-size:11px;font-weight:700;color:var(--navy);cursor:pointer;background:none;border:none;padding:0}
+/* ── Entry edit modal ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;align-items:flex-end;justify-content:center}
+.modal-overlay.open{display:flex}
+@media(min-width:600px){.modal-overlay{align-items:center}}
+.modal-box{background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;padding:24px}
+@media(min-width:600px){.modal-box{border-radius:var(--r);margin:16px}}
+.modal-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.modal-hd h3{font-size:16px;font-weight:800}
+.modal-close{background:none;border:none;cursor:pointer;color:var(--ink3);padding:4px}
+/* ── Print btn ── */
+.print-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:var(--navy);color:#fff;border:none;border-radius:var(--r);font-weight:700;font-size:13px;cursor:pointer;text-decoration:none;transition:background .12s}
+.print-btn:hover{background:var(--navy-d)}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Back link -->
+<a href="{{ url_for('yearbook') }}" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--ink2);text-decoration:none;margin-bottom:16px">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+  All Yearbooks
+</a>
+
+<!-- Cover header -->
+{% set cover_color = meta.cover_color if meta and meta.cover_color else '#1a2e5a' %}
+<div class="yb-hd">
+  <div class="yb-hd-cover" style="background:{{ cover_color }}">
+    <div class="yb-hd-cover-deco"></div>
+    <div class="yb-hd-cover-deco2"></div>
+    <div class="yb-hd-year">{{ year_group }}</div>
+    <div class="yb-hd-title">{{ meta.title if meta and meta.title else 'Yearbook' }} {% if meta and meta.subtitle %}· {{ meta.subtitle }}{% endif %}</div>
+  </div>
+  <div class="yb-hd-body">
+    <div class="yb-hd-msg">
+      {% if meta and meta.class_teacher %}
+      <h3>Class Teacher</h3>
+      <p style="margin-bottom:12px">{{ meta.class_teacher }}</p>
+      {% endif %}
+      {% if meta and meta.message %}
+      <h3>Message</h3>
+      <p>{{ meta.message }}</p>
+      {% endif %}
+    </div>
+    <div class="yb-hd-stats">
+      <div class="yb-stat">
+        <div class="yb-stat-n">{{ students|length }}</div>
+        <div class="yb-stat-l">Students</div>
+      </div>
+    </div>
+    {% if is_editor %}
+    <div style="width:100%;display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
+      <a href="{{ url_for('yearbook_print', year_group=year_group) }}" class="print-btn" target="_blank">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Print / Export PDF
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Achievements -->
+{% if meta and meta.achievements %}
+<div class="yb-achievements">
+  <h3>Class Achievements</h3>
+  <p>{{ meta.achievements }}</p>
+</div>
+{% endif %}
+
+<!-- Admin edit panel -->
+{% if is_editor %}
+<details class="yb-edit-panel">
+  <summary>Edit Yearbook Details</summary>
+  <form method="POST" action="{{ url_for('yearbook_edit_meta', year_group=year_group) }}">
+    <div class="yb-edit-grid">
+      <div class="field">
+        <label>Title</label>
+        <input type="text" name="title" value="{{ meta.title if meta else '' }}" placeholder="e.g. Class of 2025">
+      </div>
+      <div class="field">
+        <label>Subtitle</label>
+        <input type="text" name="subtitle" value="{{ meta.subtitle if meta else '' }}" placeholder="e.g. The Trailblazers">
+      </div>
+      <div class="field">
+        <label>Class Teacher</label>
+        <input type="text" name="class_teacher" value="{{ meta.class_teacher if meta else '' }}" placeholder="Full name">
+      </div>
+      <div class="field">
+        <label>Cover Colour</label>
+        <input type="color" name="cover_color" value="{{ meta.cover_color if meta else '#1a2e5a' }}">
+      </div>
+      <div class="field" style="grid-column:1/-1">
+        <label>Class Message / Dedication</label>
+        <textarea name="message" rows="3" placeholder="A message from the class or teacher…">{{ meta.message if meta else '' }}</textarea>
+      </div>
+      <div class="field" style="grid-column:1/-1">
+        <label>Achievements</label>
+        <textarea name="achievements" rows="4" placeholder="List notable achievements, awards, events…">{{ meta.achievements if meta else '' }}</textarea>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm" style="margin-top:8px">Save Details</button>
+  </form>
+</details>
+{% endif %}
+
+<!-- Student cards -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+  <h2 style="font-size:16px;font-weight:800">Students ({{ students|length }})</h2>
+</div>
+
+{% if students %}
+<div class="yb-students">
+  {% for s in students %}
+  <div class="yb-card" id="card-{{ s.id }}">
+    <div class="yb-card-photo">
+      {% if s.avatar %}<img src="{{ url_for('serve_media', filename=s.avatar) }}" alt="">
+      {% else %}<span class="yb-card-photo-init">{{ s.username[0].upper() }}</span>{% endif %}
+      {% if s.nickname %}<div class="yb-card-nickname">"{{ s.nickname }}"</div>{% endif %}
+    </div>
+    <div class="yb-card-body">
+      <div class="yb-card-name">@{{ s.username }}</div>
+      {% if s.bio %}<div class="yb-card-bio">{{ s.bio }}</div>{% endif %}
+      {% if s.quote %}<div class="yb-card-quote">"{{ s.quote }}"</div>{% endif %}
+      <div class="yb-card-tags">
+        {% if s.ambition %}<span class="yb-card-tag">{{ s.ambition[:30] }}</span>{% endif %}
+        {% if s.memory %}<span class="yb-card-tag">{{ s.memory[:30] }}</span>{% endif %}
+      </div>
+      {% if is_editor or cu.id == s.id %}
+      <button class="yb-card-edit" onclick="openEntryModal({{ s.id }}, '{{ s.username|e }}', '{{ (s.quote or '')|replace("'","\\'") |e }}', '{{ (s.ambition or '')|replace("'","\\'")|e }}', '{{ (s.memory or '')|replace("'","\\'")|e }}', '{{ (s.nickname or '')|replace("'","\\'")|e }}')">Edit entry</button>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div style="text-align:center;padding:48px 16px;color:var(--ink3)">
+  <p>No {{ year_group }} students found. Make sure students have their year group set in their profile.</p>
+</div>
+{% endif %}
+
+<!-- Entry edit modal -->
+<div class="modal-overlay" id="entryModal">
+  <div class="modal-box">
+    <div class="modal-hd">
+      <h3 id="modalTitle">Edit Entry</h3>
+      <button class="modal-close" onclick="closeEntryModal()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="POST" action="{{ url_for('yearbook_edit_entry', year_group=year_group) }}" id="entryForm">
+      <input type="hidden" name="user_id" id="entryUserId">
+      <div class="field">
+        <label>Nickname / Known As</label>
+        <input type="text" name="nickname" id="entryNickname" placeholder="e.g. The Quiet Storm" maxlength="60">
+        <span style="font-size:11px;color:var(--ink3)">Short nickname or title (max 60 chars)</span>
+      </div>
+      <div class="field">
+        <label>Personal Quote</label>
+        <textarea name="quote" id="entryQuote" rows="2" maxlength="200" placeholder="A quote that defines you…"></textarea>
+      </div>
+      <div class="field">
+        <label>Ambition / Future Goal</label>
+        <input type="text" name="ambition" id="entryAmbition" maxlength="200" placeholder="e.g. Become a doctor, study engineering…">
+      </div>
+      <div class="field">
+        <label>Best School Memory</label>
+        <input type="text" name="memory" id="entryMemory" maxlength="200" placeholder="e.g. The 2024 science fair">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:8px">
+        <button type="submit" class="btn btn-primary btn-sm">Save Entry</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="closeEntryModal()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openEntryModal(uid, username, quote, ambition, memory, nickname){
+  document.getElementById('modalTitle').textContent = 'Edit: @' + username;
+  document.getElementById('entryUserId').value    = uid;
+  document.getElementById('entryQuote').value     = quote;
+  document.getElementById('entryAmbition').value  = ambition;
+  document.getElementById('entryMemory').value    = memory;
+  document.getElementById('entryNickname').value  = nickname;
+  document.getElementById('entryModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeEntryModal(){
+  document.getElementById('entryModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.getElementById('entryModal').addEventListener('click', function(e){
+  if(e.target===this) closeEntryModal();
+});
+</script>
+{% endblock %}

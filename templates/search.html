@@ -33,7 +33,7 @@
 {% block content %}
 <div class="search-hero">
   <h1 style="font-size:22px;font-weight:800;margin-bottom:16px">Search</h1>
-  <form method="GET" action="{{ url_for('global_search') }}" class="search-bar-wrap">
+  <form method="GET" action="{{ url_for('explore') }}" class="search-bar-wrap">
     <input class="search-input" name="q" value="{{ q }}" placeholder="Search people, channels, posts…" autofocus autocomplete="off">
     <button class="search-btn" type="submit">Search</button>
   </form>
