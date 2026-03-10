@@ -664,7 +664,7 @@ def inject_globals():
     mc   = unread_msg_count(user["id"])   if user else 0
     return dict(
         cu=user, notif_count=nc, msg_count=mc,
-        _fmt=_fmt_time, _rel=_relative_time,
+        _fmt=_fmt_time, _rel=_relative_time, _now=_now,
         ROLE_LABELS={"student":"Student","teacher":"Teacher","senator":"Senator",
                      "admin":"Admin","super_admin":"Super Admin"},
         RECIPIENT_LABELS=RECIPIENT_LABELS,
@@ -695,14 +695,14 @@ def serialise_post(row, viewer_id=None):
 
     # Comments
     raw_cmts = query(
-        """SELECT c.*, u.name, u.role, u.anon_name, u.avatar, u.username
+        """SELECT c.*, u.username, u.role, u.anon_name, u.avatar, u.username
            FROM comments c JOIN users u ON c.author_id=u.id
            WHERE c.post_id=? ORDER BY c.created_at ASC""",
         (row["id"],)
     )
     comments = []
     for c in raw_cmts:
-        ca_display = c["anon_name"] if (c["is_anon"] and c["anon_name"]) else c["name"]
+        ca_display = c["anon_name"] if (c["is_anon"] and c["anon_name"]) else c["username"]
         ca_avatar  = "" if c["is_anon"] else c["avatar"]
         comments.append({
             "id": c["id"], "content": c["content"],
@@ -994,7 +994,7 @@ def unflag_comment(cid):
 def get_post_comments(pid):
     """JSON endpoint for fetching comments (used by Reels drawer)."""
     rows = query(
-        "SELECT c.*, u.name, u.username, u.avatar, u.anon_name FROM comments c "
+        "SELECT c.*, u.username, u.username, u.avatar, u.anon_name FROM comments c "
         "JOIN users u ON c.author_id=u.id WHERE c.post_id=? ORDER BY c.created_at ASC",
         (pid,)
     )
@@ -1016,7 +1016,7 @@ def get_post_comments(pid):
 @login_required
 @roles_required("super_admin")
 def reveal_comment_identity(cid):
-    c = query("SELECT c.*, u.name, u.username, u.role, u.anon_name FROM comments c JOIN users u ON c.author_id=u.id WHERE c.id=?", (cid,), one=True)
+    c = query("SELECT c.*, u.username, u.username, u.role, u.anon_name FROM comments c JOIN users u ON c.author_id=u.id WHERE c.id=?", (cid,), one=True)
     if not c:
         return jsonify({"error": "Comment not found"}), 404
     return jsonify({
@@ -1152,7 +1152,7 @@ def people():
                (SELECT COUNT(*) FROM follows WHERE follower_id=u.id) as following_ct,
                (SELECT 1     FROM follows WHERE follower_id=? AND followee_id=u.id) as i_follow
                FROM users u WHERE u.id!=? AND (LOWER(u.name) LIKE ? OR LOWER(u.username) LIKE ?)
-               ORDER BY u.name""",
+               ORDER BY u.username""",
             (viewer["id"], viewer["id"], f"%{search.lower()}%", f"%{search.lower()}%")
         )
     else:
@@ -1161,7 +1161,7 @@ def people():
                (SELECT COUNT(*) FROM follows WHERE followee_id=u.id) as followers,
                (SELECT COUNT(*) FROM follows WHERE follower_id=u.id) as following_ct,
                (SELECT 1     FROM follows WHERE follower_id=? AND followee_id=u.id) as i_follow
-               FROM users u WHERE u.id!=? ORDER BY u.name""",
+               FROM users u WHERE u.id!=? ORDER BY u.username""",
             (viewer["id"], viewer["id"])
         )
     return render_template("people.html", users=users, search=search)
@@ -1246,7 +1246,7 @@ def conversation(conv_id):
                   COALESCE(m.msg_type, 'text') as msg_type,
                   COALESCE(m.reply_to, '') as reply_to,
                   COALESCE(m.reply_preview, '') as reply_preview,
-                  u.name, u.avatar, u.anon_name
+                  u.username, u.avatar, u.anon_name
            FROM messages m
            JOIN users u ON m.sender_id=u.id
            WHERE m.conversation_id=? ORDER BY m.created_at ASC""",
@@ -1334,12 +1334,12 @@ def settings():
 def admin_panel():
     users = query("SELECT * FROM users ORDER BY role, name")
     flagged = query(
-        """SELECT p.*, u.name as uname, u.username as uusername
+        """SELECT p.*, u.username as uname, u.username as uusername
            FROM posts p JOIN users u ON p.author_id=u.id
            WHERE p.flagged=1 ORDER BY p.created_at DESC"""
     )
     flagged_comments = query(
-        """SELECT c.*, u.name as uname, u.username as uusername, u.role as urole,
+        """SELECT c.*, u.username as uname, u.username as uusername, u.role as urole,
                   p.content as post_content, p.id as post_id, p.recipient as post_recipient
            FROM comments c
            JOIN users u ON c.author_id=u.id
@@ -2559,8 +2559,8 @@ def notif_count():
 @app.route("/events")
 @login_required
 def events():
-    evs = query("SELECT e.*, u.username as author_name FROM events e JOIN users u ON u.id=e.author_id WHERE e.event_date >= CURRENT_DATE ORDER BY e.event_date ASC LIMIT 50")
-    past = query("SELECT e.*, u.username as author_name FROM events e JOIN users u ON u.id=e.author_id WHERE e.event_date < CURRENT_DATE ORDER BY e.event_date DESC LIMIT 10")
+    evs = query("SELECT e.*, u.username as author_name FROM events e JOIN users u ON u.id=e.author_id WHERE e.event_date >= TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') ORDER BY e.event_date ASC LIMIT 50")
+    past = query("SELECT e.*, u.username as author_name FROM events e JOIN users u ON u.id=e.author_id WHERE e.event_date < TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') ORDER BY e.event_date DESC LIMIT 10")
     return render_template("events.html", events=evs, past=past)
 
 @app.route("/events/create", methods=["POST"])
