@@ -211,7 +211,7 @@
           <div class="ch-meta">{{ ch.follower_count }} follower{{ 's' if ch.follower_count != 1 }} · {{ ch.post_count }} post{{ 's' if ch.post_count != 1 }} · by @{{ ch.creator_name }}</div>
         </div>
       </a>
-      <form method="POST" action="{{ url_for('follow_channel', cid=ch.id) }}">
+      <form method="POST" action="{{ url_for('channel_follow', cid=ch.id) }}">
         <button class="ch-follow-btn {{ 'following' if ch.is_following else 'follow' }}"
                 type="submit">{{ 'Following' if ch.is_following else 'Follow' }}</button>
       </form>
