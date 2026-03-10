@@ -1298,6 +1298,8 @@ def test_download():
 def download_media():
     from urllib.parse import unquote
     import urllib.request as _urlreq
+    import cloudinary.utils
+    import re as _re
 
     url       = unquote(request.args.get("url", ""))
     orig_name = unquote(request.args.get("name", "document"))
@@ -1319,22 +1321,33 @@ def download_media():
     mime = mime_map.get(ext, "application/octet-stream")
 
     try:
-        # Fetch directly - raw files with extension in public_id are publicly accessible
-        req = _urlreq.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        # Extract public_id from stored Cloudinary URL
+        m = _re.search(r"/upload/(?:v\d+/)?(.+?)(?:\?|$)", url)
+        if not m:
+            return f"Cannot parse public_id from: {url}", 500, {"Content-Type": "text/plain"}
+        public_id = m.group(1)
+
+        # Generate signed URL — bypasses 401
+        signed_url, _ = cloudinary.utils.cloudinary_url(
+            public_id,
+            resource_type = "raw",
+            type          = "upload",
+            sign_url      = True,
+            secure        = True,
+        )
+
+        req = _urlreq.Request(signed_url, headers={"User-Agent": "Mozilla/5.0"})
         with _urlreq.urlopen(req, timeout=30) as resp:
-            # Check if we got redirected to an error page
-            actual_url = resp.geturl()
             data = resp.read()
 
         from flask import Response as FR
         r = FR(data, mimetype=mime)
-        r.headers["Content-Disposition"] = f'attachment; filename="{orig_name}"' 
+        r.headers["Content-Disposition"] = 'attachment; filename="' + orig_name + '"'
         r.headers["Content-Length"]      = str(len(data))
         r.headers["Cache-Control"]       = "no-cache"
         return r
 
     except Exception as e:
-        # Return the actual error as plain text so we can see it
         return str(e), 500, {"Content-Type": "text/plain"}
 
 
