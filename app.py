@@ -392,6 +392,7 @@ def save_upload(file) -> tuple[str, str, str]:
             public_id     = public_id,
             use_filename  = False,
             overwrite     = False,
+            access_mode   = "public",
         )
         url = result.get("secure_url", "")
         return url, mtype, original_name
@@ -1208,16 +1209,18 @@ def serve_media(filename):
 @app.route("/download")
 @login_required
 def download_media():
-    """Proxy document download - fetch from Cloudinary, serve with correct headers."""
-    import mimetypes
+    """Proxy document download - fetches from Cloudinary and serves with correct headers."""
     from urllib.parse import unquote
     import urllib.request as _urlreq
+    import re as _re
+    import cloudinary.utils
+
     url       = unquote(request.args.get("url", ""))
     orig_name = unquote(request.args.get("name", "document"))
+
     if not url.startswith("http"):
         abort(400)
-    # Determine MIME type from filename extension
-    ext = orig_name.rsplit(".", 1)[-1].lower() if "." in orig_name else ""
+
     mime_map = {
         "pdf":  "application/pdf",
         "doc":  "application/msword",
@@ -1228,33 +1231,42 @@ def download_media():
         "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "txt":  "text/plain",
     }
+    ext  = orig_name.rsplit(".", 1)[-1].lower() if "." in orig_name else ""
     mime = mime_map.get(ext, "application/octet-stream")
+
     try:
-        req = _urlreq.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        # Extract public_id: everything after /upload/v12345/
+        m = _re.search(r'/upload/(?:v\d+/)?(.+?)(?:\?|$)', url)
+        if not m:
+            app.logger.error(f"Cannot parse public_id from: {url}")
+            abort(500)
+        public_id = m.group(1)
+        app.logger.info(f"Downloading public_id={public_id} name={orig_name}")
+
+        # Generate signed URL using Cloudinary SDK
+        signed_url, _ = cloudinary.utils.cloudinary_url(
+            public_id,
+            resource_type = "raw",
+            type          = "upload",
+            sign_url      = True,
+            secure        = True,
+        )
+
+        req = _urlreq.Request(signed_url, headers={"User-Agent": "Mozilla/5.0"})
         with _urlreq.urlopen(req, timeout=30) as resp:
             data = resp.read()
+
         from flask import Response as FR
         r = FR(data, mimetype=mime)
         r.headers["Content-Disposition"] = f'attachment; filename="{orig_name}"' 
-        r.headers["Content-Length"] = str(len(data))
-        r.headers["Cache-Control"] = "no-cache"
+        r.headers["Content-Length"]      = str(len(data))
+        r.headers["Cache-Control"]       = "no-cache"
         return r
+
     except Exception as e:
         app.logger.error(f"Download proxy error: {e}")
         abort(500)
 
-# ─── Error handlers ───────────────────────────────────────────────────────────
-@app.errorhandler(403)
-def e403(e): return render_template("error.html", code=403, msg="Access Forbidden"), 403
-
-@app.errorhandler(404)
-def e404(e): return render_template("error.html", code=404, msg="Page Not Found"), 404
-
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# STUDENT CHANNELS ROUTES
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @app.route("/channels")
 @login_required
