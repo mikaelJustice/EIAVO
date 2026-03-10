@@ -1384,7 +1384,7 @@ def channel_detail(cid):
         posts_with_comments.append({
             "id": p["id"], "content": p["content"],
             "media_path": p["media_path"], "media_type": p["media_type"],
-            "media_name": p.get("media_name", "") if hasattr(p, "get") else (p["media_name"] if "media_name" in p.keys() else ""),
+            "media_name": p["media_name"] if "media_name" in p.keys() else "",
             "display": display, "avatar": avatar,
             "author_role": p["author_role"], "author_id": p["author_id"],
             "is_anon": is_anon,
@@ -1667,9 +1667,7 @@ def class_post(cid):
     if "file" in request.files:
         f = request.files["file"]
         if f and f.filename:
-            ext  = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else "bin"
             safe = secure_filename(f.filename)
-            fname = f"{_uid()}.{ext}"
             url, _, _x = save_upload(f)
             file_path = url
             file_name = safe
@@ -1720,9 +1718,7 @@ def class_reply(cid, pid):
     if "file" in request.files:
         f = request.files["file"]
         if f and f.filename:
-            ext   = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else "bin"
             safe  = secure_filename(f.filename)
-            fname = f"{_uid()}.{ext}"
             url, _, _x = save_upload(f)
             file_path = url
             file_name = safe

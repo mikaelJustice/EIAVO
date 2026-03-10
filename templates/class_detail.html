@@ -218,10 +218,10 @@
           {% if p.title %}<div class="class-post-title">{{ p.title }}</div>{% endif %}
           {% if p.content %}<div class="class-post-content">{{ p.content }}</div>{% endif %}
           {% if p.file_path %}
-          <a href="{{ url_for('serve_media', filename=p.file_path) }}" download="{{ p.file_name }}" class="file-download-link" target="_blank">
+          <button class="file-download-link" onclick="dlDoc(this,this.dataset.url,this.dataset.name)" data-url="{{ p.file_path|e }}" data-name="{{ p.file_name|e if p.file_name else p.file_path.split('/')[-1] }}">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
             {{ p.file_name or 'Download Attachment' }}
-          </a>
+          </button>
           {% endif %}
         </div>
 
@@ -241,10 +241,10 @@
               </div>
               {% if r.content %}<div style="margin-top:4px">{{ r.content }}</div>{% endif %}
               {% if r.file_path %}
-              <a href="{{ url_for('serve_media', filename=r.file_path) }}" download="{{ r.file_name }}" class="reply-file-link" target="_blank">
+              <button class="reply-file-link" onclick="dlDoc(this,this.dataset.url,this.dataset.name)" data-url="{{ r.file_path|e }}" data-name="{{ r.file_name|e if r.file_name else r.file_path.split('/')[-1] }}">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
                 {{ r.file_name or 'Attachment' }}
-              </a>
+              </button>
               {% endif %}
               <div class="reply-meta">{{ _rel(r.created_at) }}</div>
             </div>
@@ -364,6 +364,25 @@
 <script>
 function showFileName(input) {
   document.getElementById('fileNameDisplay').textContent = input.files[0]?.name || '';
+}
+</script>
+
+<script>
+function dlDoc(btn, url, filename) {
+  var orig = btn.innerHTML;
+  btn.innerHTML = '<span>⏳ Downloading...</span>';
+  btn.disabled = true;
+  fetch('/download?url=' + encodeURIComponent(url) + '&name=' + encodeURIComponent(filename), {credentials:'same-origin'})
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.blob(); })
+    .then(function(blob){
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      btn.innerHTML = orig; btn.disabled = false;
+    })
+    .catch(function(e){ alert('Download failed: '+e.message); btn.innerHTML = orig; btn.disabled = false; });
 }
 </script>
 {% endblock %}
