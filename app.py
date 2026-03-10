@@ -324,13 +324,16 @@ def init_db():
         "ALTER TABLE notifications  ADD COLUMN IF NOT EXISTS actor_id    INTEGER",
         "ALTER TABLE notifications  ADD COLUMN IF NOT EXISTS notif_type  TEXT DEFAULT 'info'",
     ]
+    # Each migration needs its own transaction in PostgreSQL
+    db.commit()  # commit table creations first
     for sql in migrations:
         try:
             cur.execute(sql)
-        except Exception:
-            pass  # already exists
+            db.commit()
+        except Exception as me:
+            db.rollback()
+            print(f"[migration] skipped: {sql[:60]} ({me})")
 
-    db.commit()
     cur.close()
     db.close()
 
@@ -536,7 +539,7 @@ def serialise_post(row, viewer_id=None):
 
     return {
         "id": row["id"], "content": row["content"],
-        "media": row["media_path"], "media_path": row["media_path"], "media_type": row["media_type"], "media_name": row.get("media_name", ""),
+        "media": row["media_path"], "media_path": row["media_path"], "media_type": row["media_type"], "media_name": (row["media_name"] if "media_name" in row.keys() else ""),
         "is_anon": is_anon, "display": display, "display_name": display, "avatar": avatar,
         "role": role_shown, "role_shown": role_shown, "author_id": row["author_id"],
         "recipient": row["recipient"], "flagged": bool(row["flagged"]),
@@ -589,11 +592,11 @@ def feed():
     visible = ROLE_VISIBLE.get(role, ["all_school", "announcement"])
 
     if visible is None:  # super_admin sees all
-        rows = query("SELECT * FROM posts ORDER BY created_at DESC LIMIT 100")
+        rows = query("SELECT *, COALESCE(media_name,'') as media_name FROM posts ORDER BY created_at DESC LIMIT 100")
     else:
         placeholders = ",".join("?" * len(visible))
         rows = query(
-            f"SELECT * FROM posts WHERE recipient IN ({placeholders}) ORDER BY created_at DESC LIMIT 100",
+            f"SELECT *, COALESCE(media_name,'') as media_name FROM posts WHERE recipient IN ({placeholders}) ORDER BY created_at DESC LIMIT 100",
             visible
         )
 
@@ -1271,12 +1274,13 @@ def test_download():
             if m:
                 pid = m.group(1)
                 results["public_id"] = pid
-                signed2, _ = cloudinary.utils.cloudinary_url(
-                    pid, resource_type="raw", type="upload",
-                    sign_url=True, secure=True,
+                # Test private_download_url
+                ext2 = pid.rsplit(".", 1)[-1] if "." in pid else "bin"
+                dl_url = cloudinary.utils.private_download_url(
+                    pid, ext2, resource_type="raw", type="upload", attachment=True,
                 )
-                results["signed_url2"] = signed2[:120]
-                req = _urlreq.Request(signed2, headers={"User-Agent":"Mozilla/5.0"})
+                results["private_dl_url"] = dl_url[:120]
+                req = _urlreq.Request(dl_url, headers={"User-Agent":"Mozilla/5.0"})
                 with _urlreq.urlopen(req, timeout=15) as resp:
                     data = resp.read(100)
                 results["fetch_ok"] = True
@@ -1298,7 +1302,6 @@ def test_download():
 def download_media():
     from urllib.parse import unquote
     import urllib.request as _urlreq
-    import cloudinary.utils
     import re as _re
 
     url       = unquote(request.args.get("url", ""))
@@ -1321,22 +1324,24 @@ def download_media():
     mime = mime_map.get(ext, "application/octet-stream")
 
     try:
-        # Extract public_id from stored Cloudinary URL
+        # Use Cloudinary's private_download_url which generates a
+        # time-limited authenticated download URL via the API
+        import cloudinary.utils
         m = _re.search(r"/upload/(?:v\d+/)?(.+?)(?:\?|$)", url)
         if not m:
             return f"Cannot parse public_id from: {url}", 500, {"Content-Type": "text/plain"}
         public_id = m.group(1)
 
-        # Generate signed URL — bypasses 401
-        signed_url, _ = cloudinary.utils.cloudinary_url(
+        # Generate a private download URL (works for raw/authenticated resources)
+        dl_url = cloudinary.utils.private_download_url(
             public_id,
+            ext if ext else "bin",
             resource_type = "raw",
             type          = "upload",
-            sign_url      = True,
-            secure        = True,
+            attachment    = True,
         )
 
-        req = _urlreq.Request(signed_url, headers={"User-Agent": "Mozilla/5.0"})
+        req = _urlreq.Request(dl_url, headers={"User-Agent": "Mozilla/5.0"})
         with _urlreq.urlopen(req, timeout=30) as resp:
             data = resp.read()
 
@@ -1448,7 +1453,10 @@ def channel_detail(cid):
         abort(404)
 
     posts = query(
-        """SELECT cp.*, u.username as author_name, u.role as author_role,
+        """SELECT cp.id, cp.channel_id, cp.author_id, cp.content,
+                  cp.media_path, cp.media_type, cp.is_anon, cp.created_at,
+                  COALESCE(cp.media_name, '') as media_name,
+                  u.username as author_name, u.role as author_role,
                   u.avatar as author_avatar, u.anon_name as author_anon,
                   (SELECT COUNT(*) FROM channel_comments WHERE post_id=cp.id) as comment_count
            FROM channel_posts cp JOIN users u ON cp.author_id=u.id
