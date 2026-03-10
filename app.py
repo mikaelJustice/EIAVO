@@ -309,6 +309,27 @@ def init_db():
             ("superadmin", pw, "Super Administrator", "super_admin", anon, _now())
         )
 
+    # ── Runtime migrations: safely add columns that may not exist yet ──────────
+    migrations = [
+        "ALTER TABLE posts          ADD COLUMN IF NOT EXISTS media_name  TEXT DEFAULT ''",
+        "ALTER TABLE channel_posts  ADD COLUMN IF NOT EXISTS media_name  TEXT DEFAULT ''",
+        "ALTER TABLE class_posts    ADD COLUMN IF NOT EXISTS file_path   TEXT DEFAULT ''",
+        "ALTER TABLE class_posts    ADD COLUMN IF NOT EXISTS file_name   TEXT DEFAULT ''",
+        "ALTER TABLE class_replies  ADD COLUMN IF NOT EXISTS file_path   TEXT DEFAULT ''",
+        "ALTER TABLE class_replies  ADD COLUMN IF NOT EXISTS file_name   TEXT DEFAULT ''",
+        "ALTER TABLE users          ADD COLUMN IF NOT EXISTS anon_name   TEXT DEFAULT ''",
+        "ALTER TABLE users          ADD COLUMN IF NOT EXISTS year_group  TEXT DEFAULT ''",
+        "ALTER TABLE users          ADD COLUMN IF NOT EXISTS bio         TEXT DEFAULT ''",
+        "ALTER TABLE users          ADD COLUMN IF NOT EXISTS avatar      TEXT DEFAULT ''",
+        "ALTER TABLE notifications  ADD COLUMN IF NOT EXISTS actor_id    INTEGER",
+        "ALTER TABLE notifications  ADD COLUMN IF NOT EXISTS notif_type  TEXT DEFAULT 'info'",
+    ]
+    for sql in migrations:
+        try:
+            cur.execute(sql)
+        except Exception:
+            pass  # already exists
+
     db.commit()
     cur.close()
     db.close()
@@ -1264,8 +1285,11 @@ def download_media():
         return r
 
     except Exception as e:
-        app.logger.error(f"Download proxy error: {e}")
-        abort(500)
+        import traceback
+        app.logger.error(f"Download proxy error: {type(e).__name__}: {e}\n{traceback.format_exc()}")
+        # Return error details as JSON so we can see what's wrong
+        from flask import jsonify
+        return jsonify({"error": str(e), "type": type(e).__name__, "url": url, "public_id": locals().get("public_id","?"), "signed_url": locals().get("signed_url","?")}), 500
 
 
 @app.route("/channels")

@@ -433,7 +433,10 @@ function dlDoc(btn, url, filename) {
   btn.innerHTML = '<span>⏳ Downloading...</span>';
   btn.disabled = true;
   fetch('/download?url=' + encodeURIComponent(url) + '&name=' + encodeURIComponent(filename), {credentials:'same-origin'})
-    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.blob(); })
+    .then(function(r){
+      if(!r.ok) return r.text().then(function(t){ throw new Error('Server error - check Render logs. Status: ' + r.status); });
+      return r.blob();
+    })
     .then(function(blob){
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -442,7 +445,7 @@ function dlDoc(btn, url, filename) {
       setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
       btn.innerHTML = orig; btn.disabled = false;
     })
-    .catch(function(e){ alert('Download failed: '+e.message); btn.innerHTML = orig; btn.disabled = false; });
+    .catch(function(e){ alert(e.message); btn.innerHTML = orig; btn.disabled = false; });
 }
 </script>
 {% endblock %}
