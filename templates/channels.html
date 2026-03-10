@@ -92,7 +92,7 @@
 </div>
 
 <!-- Search -->
-<input type="text" class="channel-search" placeholder="🔍  Search channels…" id="channelSearch"
+<input type="text" class="channel-search" placeholder="Search channels…" id="channelSearch"
        oninput="filterChannels(this.value)">
 
 <!-- My channels -->
@@ -109,8 +109,8 @@
     </a>
     {% if ch.description %}<div class="channel-desc">{{ ch.description }}</div>{% endif %}
     <div class="channel-stats">
-      <span>👥 {{ ch.follower_count }} followers</span>
-      <span>📝 {{ ch.post_count }} posts</span>
+      <span>{{ ch.follower_count }} followers</span>
+      <span>{{ ch.post_count }} posts</span>
     </div>
     <div class="channel-actions">
       <a href="{{ url_for('channel_detail', cid=ch.id) }}" class="btn btn-outline btn-sm">Open</a>
@@ -138,8 +138,8 @@
     </a>
     {% if ch.description %}<div class="channel-desc">{{ ch.description }}</div>{% endif %}
     <div class="channel-stats">
-      <span>👥 {{ ch.follower_count }} followers</span>
-      <span>📝 {{ ch.post_count }} posts</span>
+      <span>{{ ch.follower_count }} followers</span>
+      <span>{{ ch.post_count }} posts</span>
       <span>by @{{ ch.creator_name }}</span>
     </div>
     <div class="channel-actions">

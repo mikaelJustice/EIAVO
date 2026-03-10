@@ -42,7 +42,7 @@
       <button type="submit" class="btn-post">Send Shoutout 💜</button>
     </div>
   </form>
-  <div class="anon-note">🔒 Your identity is never revealed · Reviewed before posting</div>
+  <div class="anon-note">Your identity is never revealed · Reviewed before posting</div>
 </div>
 
 {% if pending %}
@@ -53,7 +53,7 @@
     <div class="pending-text">{{ p.content }}</div>
     <div class="pending-actions">
       <form method="POST" action="{{ url_for('approve_shoutout', sid=p.id) }}" style="display:inline">
-        <button type="submit" class="btn-approve">✅ Approve</button>
+        <button type="submit" class="btn-approve">Approve</button>
       </form>
       <form method="POST" action="{{ url_for('delete_shoutout', sid=p.id) }}" style="display:inline">
         <button type="submit" class="btn-deny">🗑 Delete</button>

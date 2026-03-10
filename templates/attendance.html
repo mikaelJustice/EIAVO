@@ -30,7 +30,7 @@
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg> Back to {{ cls.name }}
 </a>
 <div class="edu-hero">
-  <h1>✋ Attendance</h1>
+  <h1>Attendance</h1>
   <p>{{ cls.name }} · {{ sessions|length }} session{{ 's' if sessions|length != 1 }}</p>
 </div>
 
@@ -38,7 +38,7 @@
   {% if cu.role == 'student' %}
     {% if active_session.id in my_records %}
     <div class="open-session">
-      <h2>✅ You're marked present!</h2>
+      <h2>Marked Present</h2>
       <p style="opacity:.8">{{ active_session.label }}</p>
     </div>
     {% else %}
@@ -46,7 +46,7 @@
       <h2>📢 Attendance is OPEN!</h2>
       <p style="opacity:.8">{{ active_session.label }} — mark yourself present now!</p>
       <form method="POST" action="{{ url_for('mark_attendance', sid=active_session.id) }}" style="margin-top:4px">
-        <button type="submit" class="mark-btn">✋ I'm Here!</button>
+        <button type="submit" class="mark-btn">Mark Present</button>
       </form>
     </div>
     {% endif %}
@@ -79,7 +79,7 @@
     <div class="sess-label">{{ s.label }}</div>
     <div class="sess-meta">{{ _rel(s.created_at) }}</div>
     {% if cu.role == 'student' %}
-      {% if s.id in my_records %}<span class="present-chip">✅ Present</span>{% else %}<span class="absent-chip">❌ Absent</span>{% endif %}
+      {% if s.id in my_records %}<span class="present-chip">Present</span>{% else %}<span class="absent-chip">Absent</span>{% endif %}
     {% endif %}
   </div>
   {% if cu.role in ('teacher','admin','super_admin') %}

@@ -41,13 +41,13 @@
   Back to {{ cls.name }}
 </a>
 <div class="edu-hero">
-  <h1>📋 Assignments</h1>
+  <h1>Assignments</h1>
   <p>{{ cls.name }} · {{ asgns|length }} assignment{{ 's' if asgns|length != 1 }}</p>
 </div>
 
 {% if cu.role in ('teacher','admin','super_admin') %}
 <div class="create-panel">
-  <h2>➕ Create New Assignment</h2>
+  <h2>New Assignment</h2>
   <form method="POST" action="{{ url_for('create_assignment', cid=cls.id) }}">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="form-row"><label>Title *</label><input name="title" required placeholder="e.g. Chapter 5 Essay"></div>
@@ -76,11 +76,11 @@
     </div>
     <div>
       {% if is_late %}
-        <span class="due-badge due-late">⏰ Due: {{ a.due_date[:10] }}</span>
+        <span class="due-badge due-late">Overdue: {{ a.due_date[:10] }}</span>
       {% elif a.due_date[:10] == _now()[:10] %}
         <span class="due-badge due-soon">⚡ Due Today</span>
       {% else %}
-        <span class="due-badge due-ok">📅 Due: {{ a.due_date[:10] }}</span>
+        <span class="due-badge due-ok">Due: {{ a.due_date[:10] }}</span>
       {% endif %}
     </div>
   </div>
@@ -89,9 +89,9 @@
   {% if cu.role == 'student' %}
     {% if sub %}
       <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <span class="submitted-chip">✅ Submitted {{ _rel(sub.submitted_at) }}</span>
+        <span class="submitted-chip">Submitted {{ _rel(sub.submitted_at) }}</span>
         {% if sub.grade %}<span class="grade-badge">{{ sub.grade }} / {{ a.max_marks }}</span>{% endif %}
-        {% if sub.feedback %}<div style="font-size:13px;color:var(--ink2);margin-top:6px;flex-basis:100%">💬 Teacher feedback: <em>{{ sub.feedback }}</em></div>{% endif %}
+        {% if sub.feedback %}<div style="font-size:13px;color:var(--ink2);margin-top:6px;flex-basis:100%">Feedback: <em>{{ sub.feedback }}</em></div>{% endif %}
       </div>
     {% endif %}
     {% if not sub or not sub.grade %}

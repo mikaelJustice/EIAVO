@@ -22,7 +22,7 @@
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg> Back
 </a>
 <div class="edu-hero">
-  <h1>📝 {{ asgn.title }}</h1>
+  <h1>{{ asgn.title }}</h1>
   <p>{{ asgn.class_name }} · {{ subs|length }} submission{{ 's' if subs|length != 1 }}</p>
 </div>
 {% for s in subs %}

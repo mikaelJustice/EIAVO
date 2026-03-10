@@ -85,8 +85,8 @@
     <h1><span class="hash">#</span>{{ ch.name }}</h1>
     {% if ch.description %}<p>{{ ch.description }}</p>{% endif %}
     <div class="channel-meta">
-      <span>👥 <strong id="followerCount">{{ ch.follower_count }}</strong> followers</span>
-      <span>📝 {{ posts|length }} posts</span>
+      <span><strong id="followerCount">{{ ch.follower_count }}</strong> followers</span>
+      <span>{{ posts|length }} posts</span>
       <span>by @{{ ch.creator_name }}</span>
     </div>
   </div>

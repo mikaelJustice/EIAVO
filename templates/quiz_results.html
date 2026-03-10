@@ -32,7 +32,7 @@
 <div class="result-hero {{ 'great' if pct>=80 else ('good' if pct>=60 else ('ok' if pct>=40 else 'low')) }}">
   <p style="opacity:.8;font-size:14px">{{ quiz.title }}</p>
   <div class="big-score">{{ attempt.score }}/{{ attempt.total }}</div>
-  <p style="font-size:18px;font-weight:700">{{ pct }}% · {{ 'Excellent! 🎉' if pct>=80 else ('Good Job! 👍' if pct>=60 else ('Keep Practising 📚' if pct>=40 else 'Try Again 💪')) }}</p>
+  <p style="font-size:18px;font-weight:700">{{ pct }}% — {{ 'Excellent' if pct>=80 else ('Good Work' if pct>=60 else ('Keep Practising' if pct>=40 else 'Needs Improvement')) }}</p>
 </div>
 <h2 style="font-size:16px;font-weight:700;margin-bottom:14px">Answer Review</h2>
 {% for q in questions %}
@@ -41,7 +41,7 @@
 {% set is_right = chosen == correct %}
 <div class="q-result {{ 'correct' if is_right else 'wrong' }}">
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-    <span style="font-size:18px">{{ '✅' if is_right else '❌' }}</span>
+    <span class="answer-icon">{{ '✓' if is_right else '✗' }}</span>
     <span class="q-result-text">{{ q.question }}</span>
   </div>
   {% for key, opt in [('a',q.option_a),('b',q.option_b),('c',q.option_c),('d',q.option_d)] %}
@@ -60,7 +60,7 @@
 
 {% if leaderboard %}
 <div class="lb-card">
-  <h2 style="font-size:16px;font-weight:700;margin-bottom:16px">🏆 Leaderboard</h2>
+  <h2 style="font-size:16px;font-weight:700;margin-bottom:16px">Leaderboard</h2>
   {% for r in leaderboard %}
   {% set pos = loop.index %}
   <div class="lb-row">

@@ -31,7 +31,7 @@
 {% endblock %}
 {% block content %}
 <div class="tutor-hero">
-  <h1>🤝 Peer Tutoring Board</h1>
+  <h1>Peer Tutoring Board</h1>
   <p>Ask for help or offer to teach — connect with classmates</p>
 </div>
 
@@ -39,8 +39,8 @@
   <h2>Post to the Board</h2>
   <form method="POST" action="{{ url_for('tutoring_post') }}">
     <div class="type-toggle">
-      <div class="type-btn need-btn active" onclick="setType('need',this)">🙋 I Need Help</div>
-      <div class="type-btn offer-btn" onclick="setType('offer',this)">🎓 I Can Help</div>
+      <div class="type-btn need-btn active" onclick="setType('need',this)">I Need Help</div>
+      <div class="type-btn offer-btn" onclick="setType('offer',this)">I Can Help</div>
     </div>
     <input type="hidden" name="post_type" id="postType" value="need">
     <div class="form-row"><label>Subject *</label><input name="subject" required placeholder="e.g. Algebra, Essay Writing, Chemistry"></div>
@@ -52,7 +52,7 @@
 <div>
 {% for p in posts %}
 <div class="post-card {{ p.post_type }}">
-  <div class="type-icon">{{ '🙋' if p.post_type=='need' else '🎓' }}</div>
+  <div class="type-icon">{{ 'Need' if p.post_type=='need' else 'Offer' }}</div>
   <div style="flex:1">
     <span class="post-type-label {{ 'label-need' if p.post_type=='need' else 'label-offer' }}">
       {{ 'Needs Help' if p.post_type=='need' else 'Can Help' }}
@@ -63,7 +63,7 @@
       <span>@{{ p.author_name }} · {{ _rel(p.created_at) }}</span>
       {% if p.author_id == cu.id or cu.role in ('admin','super_admin') %}
       <form method="POST" action="{{ url_for('resolve_tutoring', tid=p.id) }}" style="display:inline">
-        <button type="submit" class="resolve-btn">✅ Mark Resolved</button>
+        <button type="submit" class="resolve-btn">Mark Resolved</button>
       </form>
       {% endif %}
     </div>
@@ -71,7 +71,7 @@
 </div>
 {% else %}
 <div class="empty-state">
-  <p style="font-size:32px">🤝</p>
+  
   <p>No posts yet. Be the first to ask or offer!</p>
 </div>
 {% endfor %}

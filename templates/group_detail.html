@@ -37,7 +37,7 @@
 <div class="group-wrap">
   <div class="chat-card">
     <div class="chat-header">
-      <h2>👥 {{ grp.name }}</h2>
+      <h2>{{ grp.name }}</h2>
       {% if grp.description %}<div style="font-size:12px;opacity:.75;margin-top:2px">{{ grp.description }}</div>{% endif %}
     </div>
     <div class="chat-messages" id="chatMessages">
@@ -52,7 +52,7 @@
         </div>
       </div>
       {% else %}
-      <div style="text-align:center;padding:40px;color:var(--ink3);margin:auto">👋 Start the conversation!</div>
+      <div style="text-align:center;padding:40px;color:var(--ink3);margin:auto">No messages yet. Start the conversation.</div>
       {% endfor %}
     </div>
     <div class="chat-input">
@@ -67,12 +67,12 @@
 
   <div>
     <div class="sidebar-card" style="margin-bottom:14px">
-      <h3>🔗 Invite Code</h3>
+      <h3>Invite Code</h3>
       <div class="invite-code-box" onclick="navigator.clipboard.writeText('{{ grp.invite_code }}');this.textContent='Copied!';setTimeout(()=>this.textContent='{{ grp.invite_code }}',1500)">{{ grp.invite_code }}</div>
       <div style="font-size:11px;color:var(--ink3);text-align:center;margin-top:6px">Click to copy · Share with friends</div>
     </div>
     <div class="sidebar-card">
-      <h3>👥 Members ({{ members|length }})</h3>
+      <h3>Members ({{ members|length }})</h3>
       {% for m in members %}
       <div class="member-row">
         <div class="msg-av" style="width:26px;height:26px;font-size:11px">{{ m.username[0].upper() }}</div>

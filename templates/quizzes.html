@@ -31,13 +31,13 @@
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg> Back to {{ cls.name }}
 </a>
 <div class="edu-hero">
-  <h1>🧠 Quizzes</h1>
+  <h1>Quizzes</h1>
   <p>{{ cls.name }} · {{ quizzes|length }} quiz{{ 'zes' if quizzes|length != 1 }}</p>
 </div>
 
 {% if cu.role in ('teacher','admin','super_admin') %}
 <div class="create-panel">
-  <h2>➕ Create Quiz</h2>
+  <h2>New Quiz</h2>
   <form method="POST" action="{{ url_for('create_quiz', cid=cls.id) }}" id="quizForm">
     <div class="form-row"><label>Quiz Title *</label><input name="title" required placeholder="e.g. Chapter 3 Quiz"></div>
     <div id="questionsContainer">

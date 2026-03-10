@@ -199,7 +199,7 @@
   <div class="chat-body" id="chatBody">
     {% if not msgs %}
     <div class="chat-empty">
-      <div class="emoji">💬</div>
+      
       <p>Say hello to <strong>{{ other.username }}</strong></p>
     </div>
     {% endif %}
@@ -232,7 +232,7 @@
           <div class="{{ 'mine' if is_mine else 'theirs' }}" style="cursor:pointer"
                data-msg-id="{{ m.id }}"
                data-msg-sender="{{ 'You' if is_mine else (m.anon_name if m.is_anon and m.anon_name else m.username)|e }}"
-               data-msg-preview="🎤 Voice message"
+               data-msg-preview="Voice message"
                onclick="replyFromBubble(this)">
             <div class="voice-bubble" data-voice-url="{{ m.voice_url }}">
               <button class="vplay" onclick="event.stopPropagation();toggleVoice(this)">
@@ -478,7 +478,17 @@ async function toggleRecording(){
       document.getElementById('recTimer').textContent='Recording… '+m+':'+String(s).padStart(2,'0');
     },1000);
   } catch(e) {
-    alert('Microphone access denied.');
+    if(e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError'){
+      alert('Microphone permission was denied.\n\nPlease tap the lock/info icon in your browser address bar and allow microphone access for this site, then try again.');
+    } else if(e.name === 'NotFoundError'){
+      alert('No microphone found on this device.');
+    } else if(!window.isSecureContext){
+      alert('Microphone requires a secure connection (HTTPS). Please access this app via https://');
+    } else if(!navigator.mediaDevices){
+      alert('Your browser does not support audio recording. Please use Chrome or Safari.');
+    } else {
+      alert('Could not start microphone: ' + e.message);
+    }
   }
 }
 function cancelRecording(){

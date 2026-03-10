@@ -28,13 +28,13 @@
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg> Back to {{ cls.name }}
 </a>
 <div class="edu-hero">
-  <h1>📚 Resource Library</h1>
+  <h1>Resource Library</h1>
   <p>{{ cls.name }} · {{ resources|length }} resource{{ 's' if resources|length != 1 }}</p>
 </div>
 
 {% if cu.role in ('teacher','admin','super_admin') %}
 <div class="create-panel">
-  <h2>📤 Upload Resource</h2>
+  <h2>Upload Resource</h2>
   <form method="POST" action="{{ url_for('upload_resource', cid=cls.id) }}" enctype="multipart/form-data">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="form-row"><label>Title</label><input name="title" placeholder="e.g. Chapter 5 Notes"></div>
