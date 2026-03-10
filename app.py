@@ -492,6 +492,8 @@ def init_db():
         "ALTER TABLE posts          ADD COLUMN IF NOT EXISTS media_name  TEXT DEFAULT ''",
         "ALTER TABLE messages       ADD COLUMN IF NOT EXISTS voice_url   TEXT DEFAULT ''",
         "ALTER TABLE messages       ADD COLUMN IF NOT EXISTS msg_type    TEXT DEFAULT 'text'",
+        "ALTER TABLE messages       ADD COLUMN IF NOT EXISTS reply_to    TEXT DEFAULT ''",
+        "ALTER TABLE messages       ADD COLUMN IF NOT EXISTS reply_preview TEXT DEFAULT ''",
         "ALTER TABLE channel_posts  ADD COLUMN IF NOT EXISTS media_name  TEXT DEFAULT ''",
         "ALTER TABLE class_posts    ADD COLUMN IF NOT EXISTS file_path   TEXT DEFAULT ''",
         "ALTER TABLE class_posts    ADD COLUMN IF NOT EXISTS file_name   TEXT DEFAULT ''",
@@ -565,7 +567,7 @@ def get_anon_name(user_id: int) -> str:
     execute("UPDATE users SET anon_name=? WHERE id=?", (name, user_id))
     return name
 
-def save_upload(file) -> tuple[str, str, str]:
+def save_upload(file, force_raw=False) -> tuple[str, str, str]:
     """Upload file to Cloudinary, return (public_url, media_type, original_name)."""
     if not file or not file.filename:
         return "", "", ""
@@ -574,11 +576,14 @@ def save_upload(file) -> tuple[str, str, str]:
     import re as _re
     original_name = file.filename
     ext = original_name.rsplit(".", 1)[1].lower() if "." in original_name else ""
-    if ext in {"mp4","mov","webm"}:
+    if force_raw:
+        mtype = "voice"
+    elif ext in {"mp4","mov"}:
         mtype = "video"
     elif ext in {"pdf","doc","docx","ppt","pptx","xls","xlsx","txt"}:
         mtype = "document"
-    elif ext in {"ogg","m4a","wav"}:
+    elif ext in {"ogg","m4a","wav","webm"}:
+        # webm from browser microphone = audio, treat as raw
         mtype = "voice"
     else:
         mtype = "image"
@@ -587,9 +592,9 @@ def save_upload(file) -> tuple[str, str, str]:
         # Use original filename (sanitised) as public_id so URL keeps the extension
         safe_stem = _re.sub(r'[^a-zA-Z0-9._-]', '_', original_name.rsplit(".", 1)[0])[:60]
         public_id = f"{_uid()}_{safe_stem}"
-        if mtype == "document" and ext:
+        if mtype in ("document", "voice") and ext:
             # For raw uploads Cloudinary DOES append extension to URL when public_id has no ext
-            # We must include the extension in the public_id
+            # We must include the extension in the public_id so audio can play
             public_id = f"{public_id}.{ext}"
         result = cloudinary.uploader.upload(
             file,
@@ -1218,14 +1223,16 @@ def conversation(conv_id):
         if msg_type == "voice" and "voice_file" in request.files:
             vf = request.files["voice_file"]
             if vf and vf.filename:
-                vurl, _, _ = save_upload(vf)
+                vurl, _, _ = save_upload(vf, force_raw=True)
                 voice_url = vurl
                 content   = content or "🎤 Voice message"
 
         if content or voice_url:
+            reply_to      = request.form.get("reply_to","").strip()
+            reply_preview = request.form.get("reply_preview","").strip()[:80]
             execute(
-                "INSERT INTO messages (id,conversation_id,sender_id,content,is_anon,is_read,voice_url,msg_type,created_at) VALUES (?,?,?,?,?,0,?,?,?)",
-                (_uid(), conv_id, user["id"], content, 1 if is_anon else 0, voice_url, msg_type, _now())
+                "INSERT INTO messages (id,conversation_id,sender_id,content,is_anon,is_read,voice_url,msg_type,reply_to,reply_preview,created_at) VALUES (?,?,?,?,?,0,?,?,?,?,?)",
+                (_uid(), conv_id, user["id"], content, 1 if is_anon else 0, voice_url, msg_type, reply_to, reply_preview, _now())
             )
             display = get_anon_name(user["id"]) if is_anon else user["username"]
             push_notif(other_id, f"New message from {display}",
@@ -1237,6 +1244,8 @@ def conversation(conv_id):
                   m.is_read, m.created_at,
                   COALESCE(m.voice_url, '') as voice_url,
                   COALESCE(m.msg_type, 'text') as msg_type,
+                  COALESCE(m.reply_to, '') as reply_to,
+                  COALESCE(m.reply_preview, '') as reply_preview,
                   u.name, u.avatar, u.anon_name
            FROM messages m
            JOIN users u ON m.sender_id=u.id
@@ -1259,7 +1268,7 @@ def send_voice(conv_id):
     if "voice_file" in request.files:
         vf = request.files["voice_file"]
         if vf and vf.filename:
-            vurl, _, _ = save_upload(vf)
+            vurl, _, _ = save_upload(vf, force_raw=True)
             execute(
                 "INSERT INTO messages (id,conversation_id,sender_id,content,is_anon,is_read,voice_url,msg_type,created_at) VALUES (?,?,?,?,0,0,?,?,?)",
                 (_uid(), conv_id, user["id"], "🎤 Voice message", vurl, "voice", _now())
@@ -1298,7 +1307,8 @@ def settings():
             old_pw  = request.form.get("old_password","")
             new_pw  = request.form.get("new_password","")
             conf_pw = request.form.get("confirm_password","")
-            if user["password"] != _hash(old_pw):
+            fresh   = query("SELECT password FROM users WHERE id=?", (user["id"],), one=True)
+            if fresh["password"] != _hash(old_pw):
                 flash("Current password is incorrect.", "error")
             elif new_pw != conf_pw:
                 flash("New passwords do not match.", "error")
@@ -1515,6 +1525,52 @@ def test_download():
 
     from flask import jsonify
     return jsonify(results)
+
+
+@app.route("/stream-voice")
+@login_required
+def stream_voice():
+    """Proxy Cloudinary raw audio so browser can play without CORS/auth issues."""
+    from urllib.parse import unquote
+    import urllib.request as _urlreq
+    import cloudinary.utils, re as _re
+
+    url = unquote(request.args.get("url", ""))
+    if not url.startswith("http"):
+        abort(400)
+
+    # Detect extension for mime type
+    ext_match = _re.search(r'\.(\w+)(?:\?|$)', url)
+    ext = ext_match.group(1).lower() if ext_match else "webm"
+    mime_map = {"webm":"audio/webm","ogg":"audio/ogg","m4a":"audio/mp4","wav":"audio/wav","mp3":"audio/mpeg"}
+    mime = mime_map.get(ext, "audio/webm")
+
+    try:
+        # Generate signed URL for Cloudinary raw resource
+        m = _re.search(r"/upload/(?:v\d+/)?(.+?)(?:\?|$)", url)
+        if m:
+            public_id = m.group(1)
+            signed_url = cloudinary.utils.private_download_url(
+                public_id, ext,
+                resource_type="raw", type="upload", attachment=False,
+            )
+            fetch_url = signed_url
+        else:
+            fetch_url = url
+
+        req = _urlreq.Request(fetch_url, headers={"User-Agent": "Mozilla/5.0"})
+        with _urlreq.urlopen(req, timeout=30) as resp:
+            data = resp.read()
+
+        from flask import Response as FR
+        r = FR(data, mimetype=mime)
+        r.headers["Accept-Ranges"]  = "bytes"
+        r.headers["Content-Length"] = str(len(data))
+        r.headers["Cache-Control"]  = "private, max-age=3600"
+        return r
+
+    except Exception as e:
+        return str(e), 500, {"Content-Type": "text/plain"}
 
 
 @app.route("/download")
@@ -2490,11 +2546,21 @@ def vote_poll(pid):
 #  EVENTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+@app.route("/api/notif-count")
+@login_required
+def notif_count():
+    from flask import jsonify
+    user = current_user()
+    n = query("SELECT COUNT(*) as c FROM notifications WHERE user_id=? AND is_read=0", (user["id"],), one=True)
+    m = query("""SELECT COUNT(*) as c FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE (c.user_a=? OR c.user_b=?) AND m.sender_id!=? AND m.is_read=0""", (user["id"], user["id"], user["id"]), one=True)
+    return jsonify({"count": (n["c"] or 0) + (m["c"] or 0)})
+
+
 @app.route("/events")
 @login_required
 def events():
-    evs = query("SELECT e.*, u.username as author_name FROM events e JOIN users u ON u.id=e.author_id WHERE e.event_date >= date('now') ORDER BY e.event_date ASC LIMIT 50")
-    past = query("SELECT e.*, u.username as author_name FROM events e JOIN users u ON u.id=e.author_id WHERE e.event_date < date('now') ORDER BY e.event_date DESC LIMIT 10")
+    evs = query("SELECT e.*, u.username as author_name FROM events e JOIN users u ON u.id=e.author_id WHERE e.event_date >= CURRENT_DATE ORDER BY e.event_date ASC LIMIT 50")
+    past = query("SELECT e.*, u.username as author_name FROM events e JOIN users u ON u.id=e.author_id WHERE e.event_date < CURRENT_DATE ORDER BY e.event_date DESC LIMIT 10")
     return render_template("events.html", events=evs, past=past)
 
 @app.route("/events/create", methods=["POST"])

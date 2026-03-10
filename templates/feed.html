@@ -286,7 +286,12 @@
   {% if p.media %}
   <div class="post-media">
     {% if p.media_type == 'video' %}
-    <video controls preload="metadata"><source src="{{ url_for('serve_media', filename=p.media) }}"></video>
+    <div class="feed-video-wrap" onclick="window.location.href='{{ url_for('reels') }}'" style="cursor:pointer;position:relative">
+      <video class="feed-video" muted playsinline preload="metadata" style="width:100%;border-radius:8px;display:block;max-height:420px;object-fit:cover;pointer-events:none">
+        <source src="{{ url_for('serve_media', filename=p.media) }}">
+      </video>
+      <div style="position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,.55);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px">▶ Tap for Reels</div>
+    </div>
     {% elif p.media_type == 'document' %}
     <button class="doc-link" onclick="dlDoc(this,this.dataset.url,this.dataset.name)" data-url="{{ p.media|e }}" data-name="{{ p.media_name|e if p.media_name else p.media.split('/')[-1] }}">
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>
@@ -447,5 +452,25 @@ function dlDoc(btn, url, filename) {
     })
     .catch(function(e){ alert('Error: ' + e.message); btn.innerHTML = orig; btn.disabled = false; });
 }
+</script>
+
+<script>
+// ── Feed video autoplay when visible ──
+(function(){
+  const vids = document.querySelectorAll('.feed-video');
+  if(!vids.length) return;
+  const obs = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting && e.intersectionRatio >= 0.6){
+        // Pause all others
+        vids.forEach(function(v){ if(v!==e.target && !v.paused){ v.pause(); v.currentTime=0; } });
+        e.target.play().catch(function(){});
+      } else {
+        if(!e.target.paused){ e.target.pause(); e.target.currentTime=0; }
+      }
+    });
+  }, {threshold:0.6});
+  vids.forEach(function(v){ obs.observe(v); });
+})();
 </script>
 {% endblock %}

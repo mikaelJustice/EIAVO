@@ -531,5 +531,28 @@ function closeRevealComment(){document.getElementById('revealCommentModal').clas
 document.getElementById('revealCommentModal')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeRevealComment();});
 </script>
 {% block extra_js %}{% endblock %}
+<script>
+// ── Notification badge auto-refresh (every 15 seconds) ──
+function pollNotifs(){
+  fetch('/api/notif-count', {credentials:'same-origin'})
+    .then(r => r.json())
+    .then(d => {
+      const badge = document.querySelector('.nav-badge');
+      if(d.count > 0){
+        if(badge){ badge.textContent=d.count; badge.style.display=''; }
+        else {
+          const bellLink = document.querySelector('a[href*="notifications"]');
+          if(bellLink){ const b=document.createElement('span'); b.className='nav-badge'; b.textContent=d.count; bellLink.appendChild(b); }
+        }
+      } else {
+        if(badge) badge.style.display='none';
+      }
+    }).catch(()=>{});
+}
+// Poll every 15s (only on non-conversation pages)
+if(!window.location.pathname.includes('/messages/')) {
+  setInterval(pollNotifs, 15000);
+}
+</script>
 </body>
 </html>
