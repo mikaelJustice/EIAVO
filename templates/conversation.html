@@ -1,48 +1,213 @@
 {% extends "base.html" %}
 {% block title %}{{ other.username }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.chat-wrap {
+  display: flex; flex-direction: column;
+  height: calc(100vh - 120px); max-height: 800px;
+  background: var(--white); border: 1.5px solid var(--border);
+  border-radius: var(--r); overflow: hidden;
+}
+.chat-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px; border-bottom: 1.5px solid var(--border);
+  background: var(--white); flex-shrink: 0;
+}
+.chat-header-info { flex: 1; }
+.chat-header-info .name { font-weight: 700; font-size: 15px; }
+.chat-header-info .handle { font-size: 12px; color: var(--ink3); }
+.online-dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block; margin-left: 5px; }
+
+.chat-messages {
+  flex: 1; overflow-y: auto; padding: 16px;
+  display: flex; flex-direction: column; gap: 6px;
+  scroll-behavior: smooth;
+}
+.msg-row { display: flex; flex-direction: column; max-width: 72%; }
+.msg-row.mine { align-self: flex-end; align-items: flex-end; }
+.msg-row.theirs { align-self: flex-start; align-items: flex-start; }
+.msg-sender { font-size: 11px; color: var(--ink3); margin-bottom: 2px; padding-left: 4px; }
+.msg-bubble {
+  padding: 9px 14px; border-radius: 18px; font-size: 14px;
+  line-height: 1.5; word-break: break-word; position: relative;
+}
+.msg-bubble.mine { background: var(--navy); color: #fff; border-bottom-right-radius: 4px; }
+.msg-bubble.theirs { background: #f0f2f5; color: var(--ink); border-bottom-left-radius: 4px; }
+.msg-meta {
+  font-size: 10px; color: var(--ink3); margin-top: 3px;
+  display: flex; align-items: center; gap: 5px;
+}
+.msg-meta.mine { justify-content: flex-end; }
+
+/* Read receipt ticks */
+.ticks { display: inline-flex; align-items: center; gap: 1px; }
+.ticks svg { width: 14px; height: 14px; }
+.ticks.read svg { color: #3b82f6; }
+.ticks.sent svg { color: rgba(255,255,255,0.5); }
+
+/* Voice message bubble */
+.voice-bubble {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: 18px; min-width: 200px;
+}
+.voice-bubble.mine { background: var(--navy); border-bottom-right-radius: 4px; }
+.voice-bubble.theirs { background: #f0f2f5; border-bottom-left-radius: 4px; }
+.voice-play-btn {
+  width: 36px; height: 36px; border-radius: 50%; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  transition: transform .1s;
+}
+.voice-bubble.mine .voice-play-btn { background: rgba(255,255,255,0.2); color: #fff; }
+.voice-bubble.theirs .voice-play-btn { background: var(--navy); color: #fff; }
+.voice-play-btn:hover { transform: scale(1.1); }
+.voice-waveform {
+  flex: 1; height: 32px; display: flex; align-items: center; gap: 2px;
+}
+.voice-waveform span {
+  width: 3px; border-radius: 3px; background: currentColor; opacity: 0.5;
+  animation: none;
+}
+.voice-waveform.playing span { animation: wave 0.8s ease-in-out infinite alternate; }
+.voice-waveform.playing span:nth-child(2n) { animation-delay: .15s; }
+.voice-waveform.playing span:nth-child(3n) { animation-delay: .3s; }
+@keyframes wave { from { opacity: 0.3; } to { opacity: 1; } }
+.voice-duration { font-size: 11px; opacity: 0.7; min-width: 32px; }
+.mine .voice-duration { color: #fff; }
+.theirs .voice-duration { color: var(--ink2); }
+
+/* Input area */
+.chat-input-area {
+  padding: 12px 16px; border-top: 1.5px solid var(--border);
+  background: var(--white); flex-shrink: 0;
+}
+.chat-form {
+  display: flex; align-items: center; gap: 8px;
+}
+.chat-inp {
+  flex: 1; padding: 10px 16px; border: 1.5px solid var(--border);
+  border-radius: 24px; font-size: 14px; font-family: inherit;
+  background: #f7f8fa; outline: none; transition: border .12s;
+}
+.chat-inp:focus { border-color: var(--navy); background: #fff; }
+.chat-send {
+  width: 40px; height: 40px; border-radius: 50%; background: var(--navy);
+  color: #fff; border: none; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
+  transition: background .15s;
+}
+.chat-send:hover { background: #0f2d52; }
+
+/* Voice record button */
+.voice-btn {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: #f0f2f5; color: var(--ink2); border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  transition: all .15s; flex-shrink: 0;
+}
+.voice-btn:hover { background: #fee2e2; color: #ef4444; }
+.voice-btn.recording { background: #ef4444; color: #fff; animation: pulse-rec 1s ease-in-out infinite; }
+@keyframes pulse-rec { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
+
+.recording-indicator {
+  display: none; align-items: center; gap: 8px;
+  font-size: 13px; color: #ef4444; font-weight: 600;
+}
+.recording-indicator.active { display: flex; }
+.rec-dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; animation: pulse-rec 1s ease-in-out infinite; }
+
+/* Profile link in header */
+.chat-avatar-link { text-decoration: none; display: flex; align-items: center; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="card" style="overflow:hidden">
+<div class="chat-wrap">
+
+  <!-- Header -->
   <div class="chat-header">
-    <a href="{{ url_for('messages') }}" class="btn btn-outline btn-sm" style="padding:5px 10px">
+    <a href="{{ url_for('messages') }}" class="btn btn-outline btn-sm" style="padding:5px 10px;flex-shrink:0">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
     </a>
-    <div class="av av-md">
-      {% if other.avatar %}<img src="{{ url_for('serve_media', filename=other.avatar) }}" alt="">
-      {% else %}{{ other.username[0].upper() }}{% endif %}
-    </div>
-    <div>
-      <div style="font-weight:700;font-size:15px">{{ other.username }}</div>
-      <div style="font-size:12px;color:var(--ink2)">@{{ other.username }}</div>
-    </div>
+    <a href="{{ url_for('profile', username=other.username) }}" class="chat-avatar-link" style="gap:12px">
+      <div class="av av-md">
+        {% if other.avatar %}<img src="{{ url_for('serve_media', filename=other.avatar) }}" alt="">
+        {% else %}{{ other.username[0].upper() }}{% endif %}
+      </div>
+      <div class="chat-header-info">
+        <div class="name">{{ other.name or other.username }}</div>
+        <div class="handle">@{{ other.username }} · {{ other.role|capitalize }}</div>
+      </div>
+    </a>
   </div>
 
-  <div class="chat-messages">
+  <!-- Messages -->
+  <div class="chat-messages" id="chatMessages">
     {% for m in msgs %}
     {% set is_mine = m.sender_id == cu.id %}
-    <div class="msg-row {% if is_mine %}mine{% endif %}">
-      <div>
-        {% if not is_mine %}
-        <div style="font-size:11px;color:var(--ink3);margin-bottom:3px;padding-left:4px">
-          {{ m.anon_name if m.is_anon and m.anon_name else m.name }}
+    <div class="msg-row {% if is_mine %}mine{% else %}theirs{% endif %}">
+
+      {% if not is_mine %}
+      <div class="msg-sender">{{ m.anon_name if m.is_anon and m.anon_name else m.name }}</div>
+      {% endif %}
+
+      {% if m.msg_type == 'voice' and m.voice_url %}
+      <!-- Voice message -->
+      <div class="voice-bubble {% if is_mine %}mine{% else %}theirs{% endif %}"
+           data-voice-url="{{ m.voice_url }}">
+        <button class="voice-play-btn" onclick="toggleVoice(this)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </button>
+        <div class="voice-waveform {% if is_mine %}mine{% else %}theirs{% endif %}">
+          {% for h in [18,28,14,32,22,12,26,16,30,20,14,24] %}
+          <span style="height:{{ h }}px"></span>
+          {% endfor %}
         </div>
-        {% endif %}
-        <div class="msg-bubble {% if is_mine %}mine{% else %}theirs{% endif %}">{{ m.content }}</div>
-        <div class="msg-meta {% if is_mine %}mine{% endif %}">{{ _rel(m.created_at) }}</div>
+        <span class="voice-duration">0:00</span>
       </div>
+      {% else %}
+      <!-- Text message -->
+      <div class="msg-bubble {% if is_mine %}mine{% else %}theirs{% endif %}">{{ m.content }}</div>
+      {% endif %}
+
+      <div class="msg-meta {% if is_mine %}mine{% endif %}">
+        <span>{{ _rel(m.created_at) }}</span>
+        {% if is_mine %}
+        <span class="ticks {% if m.is_read %}read{% else %}sent{% endif %}">
+          {% if m.is_read %}
+          <!-- Double blue tick - read -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 12 5 16 11 8"/><polyline points="8 12 12 16 18 8"/></svg>
+          {% else %}
+          <!-- Single grey tick - sent -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.5"><polyline points="4 12 9 17 20 6"/></svg>
+          {% endif %}
+        </span>
+        {% endif %}
+      </div>
+
     </div>
     {% else %}
-    <div class="empty-state" style="padding:40px">
+    <div class="empty-state" style="padding:40px;margin:auto">
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
       <h3>Start the conversation</h3>
     </div>
     {% endfor %}
   </div>
 
+  <!-- Input -->
   <div class="chat-input-area">
-    <form method="POST" class="chat-form">
-      <input type="text" name="content" class="chat-inp" placeholder="Message…" autocomplete="off" autofocus required>
+    <div class="recording-indicator" id="recIndicator">
+      <div class="rec-dot"></div>
+      <span id="recTimer">Recording… 0:00</span>
+      <button type="button" onclick="cancelRecording()" style="background:none;border:none;cursor:pointer;color:var(--ink3);font-size:12px">Cancel</button>
+    </div>
+    <form method="POST" class="chat-form" id="chatForm">
+      <button type="button" class="voice-btn" id="voiceBtn" onclick="toggleRecording()" title="Hold to record voice message">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </button>
+      <input type="text" name="content" id="chatInp" class="chat-inp" placeholder="Message…" autocomplete="off" autofocus>
       <input type="hidden" name="is_anon" id="msg-anon" value="">
-      <button type="button" class="anon-toggle" data-target="msg-anon" style="border-radius:20px">
+      <button type="button" class="anon-toggle" data-target="msg-anon" style="border-radius:20px;flex-shrink:0">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 10h.01M15 10h.01M12 2a8 8 0 018 8v12l-4-2-4 2-4-2-4 2V10a8 8 0 018-8z"/></svg>
         <span>Anon</span>
       </button>
@@ -51,5 +216,117 @@
       </button>
     </form>
   </div>
+
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-scroll to bottom
+const chatEl = document.getElementById('chatMessages');
+if (chatEl) chatEl.scrollTop = chatEl.scrollHeight;
+
+// Voice playback
+const audioPlayers = {};
+function toggleVoice(btn) {
+  const bubble  = btn.closest('.voice-bubble');
+  const url     = bubble.dataset.voiceUrl;
+  const waveform = bubble.querySelector('.voice-waveform');
+  const durEl   = bubble.querySelector('.voice-duration');
+
+  if (!audioPlayers[url]) {
+    audioPlayers[url] = new Audio(url);
+    audioPlayers[url].addEventListener('timeupdate', function() {
+      const s = Math.floor(this.currentTime);
+      durEl.textContent = Math.floor(s/60) + ':' + String(s%60).padStart(2,'0');
+    });
+    audioPlayers[url].addEventListener('ended', function() {
+      btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+      waveform.classList.remove('playing');
+      durEl.textContent = '0:00';
+    });
+  }
+  const audio = audioPlayers[url];
+  if (audio.paused) {
+    // Stop all others
+    Object.values(audioPlayers).forEach(function(a){ if(a!==audio){a.pause();a.currentTime=0;} });
+    document.querySelectorAll('.voice-waveform').forEach(function(w){ w.classList.remove('playing'); });
+    document.querySelectorAll('.voice-play-btn').forEach(function(b){
+      b.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+    });
+    audio.play();
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+    waveform.classList.add('playing');
+  } else {
+    audio.pause();
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+    waveform.classList.remove('playing');
+  }
+}
+
+// Voice recording
+let mediaRecorder = null;
+let audioChunks   = [];
+let recInterval   = null;
+let recSeconds    = 0;
+
+async function toggleRecording() {
+  const btn = document.getElementById('voiceBtn');
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
+    mediaRecorder = new MediaRecorder(stream, { mimeType });
+    audioChunks = [];
+    mediaRecorder.ondataavailable = function(e) { if(e.data.size>0) audioChunks.push(e.data); };
+    mediaRecorder.onstop = function() {
+      stream.getTracks().forEach(function(t){ t.stop(); });
+      clearInterval(recInterval);
+      document.getElementById('recIndicator').classList.remove('active');
+      btn.classList.remove('recording');
+      recSeconds = 0;
+      if (audioChunks.length === 0) return;
+      const blob = new Blob(audioChunks, { type: mimeType });
+      const ext  = mimeType.includes('webm') ? 'webm' : 'ogg';
+      sendVoiceMessage(blob, ext);
+    };
+    mediaRecorder.start();
+    btn.classList.add('recording');
+    document.getElementById('recIndicator').classList.add('active');
+    recSeconds = 0;
+    recInterval = setInterval(function() {
+      recSeconds++;
+      const m = Math.floor(recSeconds/60), s = recSeconds%60;
+      document.getElementById('recTimer').textContent = 'Recording… ' + m + ':' + String(s).padStart(2,'0');
+    }, 1000);
+  } catch(e) {
+    alert('Microphone access denied. Please allow microphone access to send voice messages.');
+  }
+}
+
+function cancelRecording() {
+  if (mediaRecorder) {
+    audioChunks = [];
+    mediaRecorder.stop();
+  }
+}
+
+async function sendVoiceMessage(blob, ext) {
+  const formData = new FormData();
+  formData.append('voice_file', blob, 'voice.' + ext);
+  const convId = window.location.pathname.split('/').pop();
+  try {
+    const res = await fetch('/messages/' + convId + '/voice', {
+      method: 'POST', body: formData, credentials: 'same-origin'
+    });
+    if (res.ok) window.location.reload();
+    else alert('Failed to send voice message');
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
+}
+</script>
 {% endblock %}

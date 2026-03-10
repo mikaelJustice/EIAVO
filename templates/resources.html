@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Resources — {{ cls.name }}{% endblock %}
+{% block extra_head %}
+<style>
+.edu-hero{background:linear-gradient(135deg,#bf360c,#d84315,#ff5722);border-radius:var(--r);padding:28px 32px;color:#fff;margin-bottom:24px}
+.edu-hero h1{font-family:var(--font-h);font-size:22px;font-weight:800;margin-bottom:4px}
+.res-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:24px}
+.res-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);padding:18px;transition:box-shadow .15s;display:flex;flex-direction:column;gap:8px}
+.res-card:hover{box-shadow:var(--shadow)}
+.res-icon{width:40px;height:40px;border-radius:10px;background:#fbe9e7;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.res-title{font-size:15px;font-weight:700;color:var(--ink)}
+.res-desc{font-size:12px;color:var(--ink3);line-height:1.5}
+.tag-chip{display:inline-block;padding:3px 10px;background:#fbe9e7;color:#bf360c;border-radius:20px;font-size:11px;font-weight:700}
+.create-panel{background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);padding:24px;margin-bottom:24px}
+.create-panel h2{font-size:16px;font-weight:700;margin-bottom:16px}
+.form-row{margin-bottom:12px}
+.form-row label{display:block;font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:4px}
+.form-row input,.form-row textarea{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:13px;font-family:inherit}
+.form-row input:focus,.form-row textarea:focus{outline:none;border-color:#d84315}
+.btn-primary{padding:10px 22px;background:#d84315;color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer}
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.filter-chip{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;border:1.5px solid var(--border);background:var(--white);cursor:pointer;transition:all .12s}
+.filter-chip.active,.filter-chip:hover{background:#bf360c;color:#fff;border-color:#bf360c}
+</style>
+{% endblock %}
+{% block content %}
+<a href="{{ url_for('class_detail', cid=cls.id) }}" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);margin-bottom:16px">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg> Back to {{ cls.name }}
+</a>
+<div class="edu-hero">
+  <h1>📚 Resource Library</h1>
+  <p>{{ cls.name }} · {{ resources|length }} resource{{ 's' if resources|length != 1 }}</p>
+</div>
+
+{% if cu.role in ('teacher','admin','super_admin') %}
+<div class="create-panel">
+  <h2>📤 Upload Resource</h2>
+  <form method="POST" action="{{ url_for('upload_resource', cid=cls.id) }}" enctype="multipart/form-data">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-row"><label>Title</label><input name="title" placeholder="e.g. Chapter 5 Notes"></div>
+      <div class="form-row"><label>Subject Tag</label><input name="subject_tag" placeholder="e.g. Maths, Physics"></div>
+    </div>
+    <div class="form-row"><label>Description (optional)</label><textarea name="description" rows="2" placeholder="Brief description…"></textarea></div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <label style="display:inline-flex;align-items:center;gap:7px;padding:10px 16px;border:1.5px dashed var(--border);border-radius:var(--r-sm);cursor:pointer;font-size:13px;color:var(--ink2)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span id="fileLabel">Choose file *</span>
+        <input type="file" name="file" required style="display:none" onchange="document.getElementById('fileLabel').textContent=this.files[0]?.name||'Choose file'">
+      </label>
+      <button type="submit" class="btn-primary">Upload</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+{% if tags %}
+<div class="filter-bar">
+  <div class="filter-chip active" onclick="filterTag(this,'all')">All</div>
+  {% for t in tags %}
+  <div class="filter-chip" onclick="filterTag(this,'{{ t }}')">{{ t }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="res-grid" id="resGrid">
+{% for r in resources %}
+<div class="res-card" data-tag="{{ r.subject_tag }}">
+  <div style="display:flex;align-items:flex-start;gap:12px">
+    <div class="res-icon">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#bf360c" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    </div>
+    <div>
+      <div class="res-title">{{ r.title }}</div>
+      {% if r.subject_tag %}<span class="tag-chip">{{ r.subject_tag }}</span>{% endif %}
+    </div>
+  </div>
+  {% if r.description %}<div class="res-desc">{{ r.description }}</div>{% endif %}
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
+    <span style="font-size:11px;color:var(--ink3)">by @{{ r.uploader }} · {{ _rel(r.created_at) }}</span>
+    <button class="doc-link" onclick="dlDoc(this,this.dataset.url,this.dataset.name)" data-url="{{ r.file_path|e }}" data-name="{{ r.file_name|e }}" style="padding:6px 12px;font-size:12px">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download
+    </button>
+  </div>
+</div>
+{% else %}
+<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--ink3)">No resources yet.</div>
+{% endfor %}
+</div>
+<script>
+function filterTag(el,tag){
+  document.querySelectorAll('.filter-chip').forEach(function(c){c.classList.remove('active')});
+  el.classList.add('active');
+  document.querySelectorAll('.res-card').forEach(function(c){
+    c.style.display=(tag==='all'||c.dataset.tag===tag)?'':'none';
+  });
+}
+function dlDoc(btn,url,filename){var o=btn.innerHTML;btn.innerHTML='⏳';btn.disabled=true;fetch('/download?url='+encodeURIComponent(url)+'&name='+encodeURIComponent(filename),{credentials:'same-origin'}).then(function(r){if(!r.ok)return r.text().then(function(t){throw new Error(t)});return r.blob()}).then(function(b){var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=filename;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1000);btn.innerHTML=o;btn.disabled=false}).catch(function(e){alert('Error: '+e.message);btn.innerHTML=o;btn.disabled=false})}
+</script>
+{% endblock %}

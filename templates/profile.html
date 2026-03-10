@@ -28,17 +28,16 @@
     </div>
 
     <div style="margin-top:10px">
-      <div class="profile-name">{{ prof.username }}
+      <div class="profile-name">@{{ prof.username }}
         <span class="role-tag rt-{{ prof.role }}" style="vertical-align:middle;font-size:10px;margin-left:6px">{{ ROLE_LABELS.get(prof.role, prof.role) }}</span>
       </div>
-      <div class="profile-handle">@{{ prof.username }}</div>
-      {% if is_super %}
-      <div style="margin-top:6px;padding:6px 12px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;font-size:12px;color:#7a5c00;display:inline-flex;align-items:center;gap:6px">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        <strong>Super Admin:</strong> Real name &mdash; <strong>{{ prof.name }}</strong>
+      <div class="profile-handle">
+        {% if prof.year_group %}{{ prof.year_group }}{% endif %}
       </div>
+
+      {% if prof.bio %}
+      <div class="profile-bio" style="margin-top:10px;font-size:14px;color:var(--ink);line-height:1.6;white-space:pre-wrap">{{ prof.bio }}</div>
       {% endif %}
-      {% if prof.bio %}<div class="profile-bio">{{ prof.bio }}</div>{% endif %}
     </div>
 
     <div class="profile-stats">

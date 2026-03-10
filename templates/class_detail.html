@@ -149,6 +149,26 @@
   </div>
 </div>
 
+<!-- Quick Access Feature Links -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:24px">
+  <a href="{{ url_for('assignments', cid=cls.id) }}" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);text-decoration:none;color:var(--ink);transition:box-shadow .15s;text-align:center" onmouseover="this.style.boxShadow='var(--shadow)'" onmouseout="this.style.boxShadow=''">
+    <span style="font-size:28px">📋</span>
+    <span style="font-size:13px;font-weight:700">Assignments</span>
+  </a>
+  <a href="{{ url_for('quizzes', cid=cls.id) }}" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);text-decoration:none;color:var(--ink);transition:box-shadow .15s;text-align:center" onmouseover="this.style.boxShadow='var(--shadow)'" onmouseout="this.style.boxShadow=''">
+    <span style="font-size:28px">🧠</span>
+    <span style="font-size:13px;font-weight:700">Quizzes</span>
+  </a>
+  <a href="{{ url_for('attendance', cid=cls.id) }}" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);text-decoration:none;color:var(--ink);transition:box-shadow .15s;text-align:center" onmouseover="this.style.boxShadow='var(--shadow)'" onmouseout="this.style.boxShadow=''">
+    <span style="font-size:28px">✋</span>
+    <span style="font-size:13px;font-weight:700">Attendance</span>
+  </a>
+  <a href="{{ url_for('resources', cid=cls.id) }}" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);text-decoration:none;color:var(--ink);transition:box-shadow .15s;text-align:center" onmouseover="this.style.boxShadow='var(--shadow)'" onmouseout="this.style.boxShadow=''">
+    <span style="font-size:28px">📚</span>
+    <span style="font-size:13px;font-weight:700">Resources</span>
+  </a>
+</div>
+
 <div class="class-detail-wrap">
 
   <!-- Main Feed Column -->

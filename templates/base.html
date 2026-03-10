@@ -339,6 +339,18 @@
   <a href="{{ url_for('channels') }}" class="nav-link {% if request.endpoint in ('channels','channel_detail') %}active{% endif %}">
     <svg class="ic" width="22" height="22"><use href="#ic-channel"/></svg> Channels
   </a>
+  <a href="{{ url_for('events') }}" class="nav-link {% if request.endpoint=='events' %}active{% endif %}">
+    <svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Events
+  </a>
+  <a href="{{ url_for('tutoring') }}" class="nav-link {% if request.endpoint=='tutoring' %}active{% endif %}">
+    <svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg> Peer Tutoring
+  </a>
+  <a href="{{ url_for('study_groups') }}" class="nav-link {% if request.endpoint in ('study_groups','group_detail') %}active{% endif %}">
+    <svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg> Study Groups
+  </a>
+  <a href="{{ url_for('shoutouts') }}" class="nav-link {% if request.endpoint=='shoutouts' %}active{% endif %}">
+    <svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg> Shoutouts
+  </a>
   <a href="{{ url_for('profile', username=cu.username) }}" class="nav-link {% if request.endpoint=='profile' %}active{% endif %}">
     <svg class="ic" width="22" height="22"><use href="#ic-user"/></svg> Profile
   </a>

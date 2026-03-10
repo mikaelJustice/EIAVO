@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ quiz.title }}{% endblock %}
+{% block extra_head %}
+<style>
+.quiz-wrap{max-width:700px;margin:0 auto}
+.quiz-hero{background:linear-gradient(135deg,#4a148c,#9c27b0);border-radius:var(--r);padding:28px;color:#fff;margin-bottom:24px;text-align:center}
+.quiz-hero h1{font-family:var(--font-h);font-size:24px;font-weight:800;margin-bottom:6px}
+.q-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);padding:24px;margin-bottom:16px}
+.q-number{font-size:12px;font-weight:700;color:#9c27b0;margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em}
+.q-text{font-size:16px;font-weight:600;color:var(--ink);margin-bottom:18px;line-height:1.5}
+.opt-label{display:flex;align-items:center;gap:12px;padding:12px 16px;border:1.5px solid var(--border);border-radius:var(--r-sm);cursor:pointer;margin-bottom:8px;transition:all .12s;font-size:14px}
+.opt-label:hover{border-color:#9c27b0;background:#f9f0ff}
+.opt-label input{display:none}
+.opt-label.selected{border-color:#9c27b0;background:#f3e5f5;font-weight:600}
+.opt-key{width:28px;height:28px;border-radius:50%;background:#f0f2f5;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0}
+.selected .opt-key{background:#9c27b0;color:#fff}
+.submit-bar{position:sticky;bottom:0;background:var(--white);border-top:1.5px solid var(--border);padding:16px;margin:0 -0px;text-align:center}
+.btn-submit{padding:14px 40px;background:#7b1fa2;color:#fff;border:none;border-radius:var(--r-sm);font-size:16px;font-weight:800;cursor:pointer;width:100%;max-width:400px}
+.btn-submit:hover{background:#6a1b9a}
+</style>
+{% endblock %}
+{% block content %}
+<div class="quiz-wrap">
+<div class="quiz-hero">
+  <h1>{{ quiz.title }}</h1>
+  <p style="opacity:.8">{{ quiz.class_name }} · {{ questions|length }} questions</p>
+</div>
+<form method="POST">
+  {% for q in questions %}
+  <div class="q-card">
+    <div class="q-number">Question {{ loop.index }} of {{ questions|length }}</div>
+    <div class="q-text">{{ q.question }}</div>
+    {% for key, opt in [('a', q.option_a),('b', q.option_b),('c', q.option_c),('d', q.option_d)] %}
+    {% if opt %}
+    <label class="opt-label" onclick="selectOpt(this,'{{ q.id }}')">
+      <input type="radio" name="q_{{ q.id }}" value="{{ key }}" required>
+      <span class="opt-key">{{ key|upper }}</span>
+      <span>{{ opt }}</span>
+    </label>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% endfor %}
+  <div class="submit-bar">
+    <button type="submit" class="btn-submit">Submit Quiz →</button>
+  </div>
+</form>
+</div>
+<script>
+function selectOpt(label, qid){
+  document.querySelectorAll(`input[name="q_${qid}"]`).forEach(function(i){i.closest('.opt-label').classList.remove('selected')});
+  label.classList.add('selected');
+  label.querySelector('input').checked=true;
+}
+</script>
+{% endblock %}

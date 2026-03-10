@@ -310,8 +310,188 @@ def init_db():
         )
 
     # ── Runtime migrations: safely add columns that may not exist yet ──────────
+    # ── Assignments ──────────────────────────────────────────────────────────
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS assignments (
+        id          TEXT PRIMARY KEY,
+        class_id    INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+        teacher_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title       TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        due_date    TEXT NOT NULL,
+        max_marks   INTEGER DEFAULT 100,
+        created_at  TEXT NOT NULL
+    )""")
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS submissions (
+        id            TEXT PRIMARY KEY,
+        assignment_id TEXT NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+        student_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        content       TEXT DEFAULT '',
+        file_path     TEXT DEFAULT '',
+        file_name     TEXT DEFAULT '',
+        grade         TEXT DEFAULT '',
+        feedback      TEXT DEFAULT '',
+        submitted_at  TEXT NOT NULL,
+        graded_at     TEXT DEFAULT '',
+        UNIQUE(assignment_id, student_id)
+    )""")
+
+    # ── Quizzes ───────────────────────────────────────────────────────────────
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS quizzes (
+        id          TEXT PRIMARY KEY,
+        class_id    INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+        teacher_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title       TEXT NOT NULL,
+        is_open     INTEGER NOT NULL DEFAULT 1,
+        created_at  TEXT NOT NULL
+    )""")
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS quiz_questions (
+        id          TEXT PRIMARY KEY,
+        quiz_id     TEXT NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+        question    TEXT NOT NULL,
+        option_a    TEXT NOT NULL,
+        option_b    TEXT NOT NULL,
+        option_c    TEXT NOT NULL,
+        option_d    TEXT NOT NULL,
+        correct     TEXT NOT NULL,
+        position    INTEGER DEFAULT 0
+    )""")
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS quiz_attempts (
+        id          TEXT PRIMARY KEY,
+        quiz_id     TEXT NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+        student_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        score       INTEGER DEFAULT 0,
+        total       INTEGER DEFAULT 0,
+        answers     TEXT DEFAULT '',
+        submitted_at TEXT NOT NULL,
+        UNIQUE(quiz_id, student_id)
+    )""")
+
+    # ── Attendance ────────────────────────────────────────────────────────────
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS attendance_sessions (
+        id          TEXT PRIMARY KEY,
+        class_id    INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+        teacher_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        label       TEXT DEFAULT '',
+        open_until  TEXT NOT NULL,
+        created_at  TEXT NOT NULL
+    )""")
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS attendance_records (
+        id            TEXT PRIMARY KEY,
+        session_id    TEXT NOT NULL REFERENCES attendance_sessions(id) ON DELETE CASCADE,
+        student_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        marked_at     TEXT NOT NULL,
+        UNIQUE(session_id, student_id)
+    )""")
+
+    # ── Resource Library ──────────────────────────────────────────────────────
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS resources (
+        id          TEXT PRIMARY KEY,
+        class_id    INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+        teacher_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title       TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        file_path   TEXT NOT NULL,
+        file_name   TEXT NOT NULL,
+        subject_tag TEXT DEFAULT '',
+        created_at  TEXT NOT NULL
+    )""")
+
+    # ── Polls ─────────────────────────────────────────────────────────────────
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS polls (
+        id          TEXT PRIMARY KEY,
+        author_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        class_id    INTEGER,
+        question    TEXT NOT NULL,
+        opt_a       TEXT NOT NULL,
+        opt_b       TEXT NOT NULL,
+        opt_c       TEXT DEFAULT '',
+        opt_d       TEXT DEFAULT '',
+        scope       TEXT DEFAULT 'feed',
+        ends_at     TEXT DEFAULT '',
+        created_at  TEXT NOT NULL
+    )""")
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS poll_votes (
+        id          TEXT PRIMARY KEY,
+        poll_id     TEXT NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        choice      TEXT NOT NULL,
+        UNIQUE(poll_id, user_id)
+    )""")
+
+    # ── Events ────────────────────────────────────────────────────────────────
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS events (
+        id          TEXT PRIMARY KEY,
+        author_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title       TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        event_date  TEXT NOT NULL,
+        event_time  TEXT DEFAULT '',
+        location    TEXT DEFAULT '',
+        created_at  TEXT NOT NULL
+    )""")
+
+    # ── Peer Tutoring ─────────────────────────────────────────────────────────
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS tutoring_posts (
+        id          TEXT PRIMARY KEY,
+        author_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        post_type   TEXT NOT NULL DEFAULT 'need',
+        subject     TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        is_resolved INTEGER DEFAULT 0,
+        created_at  TEXT NOT NULL
+    )""")
+
+    # ── Study Groups ─────────────────────────────────────────────────────────
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS study_groups (
+        id          TEXT PRIMARY KEY,
+        name        TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        creator_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        invite_code TEXT UNIQUE NOT NULL,
+        created_at  TEXT NOT NULL
+    )""")
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS study_group_members (
+        group_id    TEXT NOT NULL REFERENCES study_groups(id) ON DELETE CASCADE,
+        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        joined_at   TEXT NOT NULL,
+        PRIMARY KEY(group_id, user_id)
+    )""")
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS study_group_messages (
+        id          TEXT PRIMARY KEY,
+        group_id    TEXT NOT NULL REFERENCES study_groups(id) ON DELETE CASCADE,
+        author_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        content     TEXT NOT NULL,
+        created_at  TEXT NOT NULL
+    )""")
+
+    # ── Shoutouts ─────────────────────────────────────────────────────────────
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS shoutouts (
+        id          TEXT PRIMARY KEY,
+        content     TEXT NOT NULL,
+        is_approved INTEGER DEFAULT 0,
+        created_at  TEXT NOT NULL
+    )""")
+
     migrations = [
         "ALTER TABLE posts          ADD COLUMN IF NOT EXISTS media_name  TEXT DEFAULT ''",
+        "ALTER TABLE messages       ADD COLUMN IF NOT EXISTS voice_url   TEXT DEFAULT ''",
+        "ALTER TABLE messages       ADD COLUMN IF NOT EXISTS msg_type    TEXT DEFAULT 'text'",
         "ALTER TABLE channel_posts  ADD COLUMN IF NOT EXISTS media_name  TEXT DEFAULT ''",
         "ALTER TABLE class_posts    ADD COLUMN IF NOT EXISTS file_path   TEXT DEFAULT ''",
         "ALTER TABLE class_posts    ADD COLUMN IF NOT EXISTS file_name   TEXT DEFAULT ''",
@@ -398,10 +578,12 @@ def save_upload(file) -> tuple[str, str, str]:
         mtype = "video"
     elif ext in {"pdf","doc","docx","ppt","pptx","xls","xlsx","txt"}:
         mtype = "document"
+    elif ext in {"ogg","m4a","wav"}:
+        mtype = "voice"
     else:
         mtype = "image"
     try:
-        resource_type = "video" if mtype == "video" else ("raw" if mtype == "document" else "image")
+        resource_type = "video" if mtype == "video" else ("raw" if mtype in ("document","voice") else "image")
         # Use original filename (sanitised) as public_id so URL keeps the extension
         safe_stem = _re.sub(r'[^a-zA-Z0-9._-]', '_', original_name.rsplit(".", 1)[0])[:60]
         public_id = f"{_uid()}_{safe_stem}"
@@ -1027,12 +1209,23 @@ def conversation(conv_id):
     other    = query("SELECT * FROM users WHERE id=?", (other_id,), one=True)
 
     if request.method == "POST":
-        content = request.form.get("content","").strip()
-        is_anon = bool(request.form.get("is_anon"))
-        if content:
+        content  = request.form.get("content","").strip()
+        is_anon  = bool(request.form.get("is_anon"))
+        msg_type = request.form.get("msg_type", "text")
+        voice_url = ""
+
+        # Handle voice message upload
+        if msg_type == "voice" and "voice_file" in request.files:
+            vf = request.files["voice_file"]
+            if vf and vf.filename:
+                vurl, _, _ = save_upload(vf)
+                voice_url = vurl
+                content   = content or "🎤 Voice message"
+
+        if content or voice_url:
             execute(
-                "INSERT INTO messages (id,conversation_id,sender_id,content,is_anon,created_at) VALUES (?,?,?,?,?,?)",
-                (_uid(), conv_id, user["id"], content, 1 if is_anon else 0, _now())
+                "INSERT INTO messages (id,conversation_id,sender_id,content,is_anon,is_read,voice_url,msg_type,created_at) VALUES (?,?,?,?,?,0,?,?,?)",
+                (_uid(), conv_id, user["id"], content, 1 if is_anon else 0, voice_url, msg_type, _now())
             )
             display = get_anon_name(user["id"]) if is_anon else user["username"]
             push_notif(other_id, f"New message from {display}",
@@ -1040,7 +1233,12 @@ def conversation(conv_id):
         return redirect(url_for("conversation", conv_id=conv_id))
 
     msgs = query(
-        """SELECT m.*, u.name, u.avatar, u.anon_name FROM messages m
+        """SELECT m.id, m.conversation_id, m.sender_id, m.content, m.is_anon,
+                  m.is_read, m.created_at,
+                  COALESCE(m.voice_url, '') as voice_url,
+                  COALESCE(m.msg_type, 'text') as msg_type,
+                  u.name, u.avatar, u.anon_name
+           FROM messages m
            JOIN users u ON m.sender_id=u.id
            WHERE m.conversation_id=? ORDER BY m.created_at ASC""",
         (conv_id,)
@@ -1049,6 +1247,28 @@ def conversation(conv_id):
     execute("UPDATE messages SET is_read=1 WHERE conversation_id=? AND sender_id!=?",
             (conv_id, user["id"]))
     return render_template("conversation.html", conv=conv, other=other, msgs=msgs)
+
+@app.route("/messages/<conv_id>/voice", methods=["POST"])
+@login_required
+def send_voice(conv_id):
+    user = current_user()
+    conv = query("SELECT * FROM conversations WHERE id=?", (conv_id,), one=True)
+    if not conv or (conv["user_a"] != user["id"] and conv["user_b"] != user["id"]):
+        abort(403)
+    other_id = conv["user_b"] if conv["user_a"] == user["id"] else conv["user_a"]
+    if "voice_file" in request.files:
+        vf = request.files["voice_file"]
+        if vf and vf.filename:
+            vurl, _, _ = save_upload(vf)
+            execute(
+                "INSERT INTO messages (id,conversation_id,sender_id,content,is_anon,is_read,voice_url,msg_type,created_at) VALUES (?,?,?,?,0,0,?,?,?)",
+                (_uid(), conv_id, user["id"], "🎤 Voice message", vurl, "voice", _now())
+            )
+            push_notif(other_id, f"Voice message from {user['username']}",
+                       url_for("conversation", conv_id=conv_id), "message")
+    from flask import jsonify
+    return jsonify({"ok": True})
+
 
 @app.route("/messages/start/<int:uid>", methods=["POST"])
 @login_required
@@ -1944,3 +2164,494 @@ with app.app_context():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  ASSIGNMENTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/classes/<int:cid>/assignments")
+@login_required
+def assignments(cid):
+    user = current_user()
+    cls  = query("SELECT * FROM classes WHERE id=?", (cid,), one=True)
+    if not cls: abort(404)
+    asgns = query("SELECT a.*, (SELECT COUNT(*) FROM submissions s WHERE s.assignment_id=a.id) as sub_count FROM assignments a WHERE a.class_id=? ORDER BY a.due_date ASC", (cid,))
+    my_subs = {}
+    if user["role"] == "student":
+        subs = query("SELECT * FROM submissions WHERE student_id=?", (user["id"],))
+        my_subs = {s["assignment_id"]: s for s in subs}
+    members_count = query("SELECT COUNT(*) as c FROM class_members WHERE class_id=?", (cid,), one=True)["c"]
+    return render_template("assignments.html", cls=cls, asgns=asgns, my_subs=my_subs, members_count=members_count)
+
+@app.route("/classes/<int:cid>/assignments/create", methods=["POST"])
+@login_required
+@roles_required("teacher","admin","super_admin")
+def create_assignment(cid):
+    user = current_user()
+    cls  = query("SELECT * FROM classes WHERE id=?", (cid,), one=True)
+    if not cls: abort(404)
+    if user["role"] == "teacher" and cls["teacher_id"] != user["id"]: abort(403)
+    title    = request.form.get("title","").strip()
+    desc     = request.form.get("description","").strip()
+    due      = request.form.get("due_date","").strip()
+    marks    = int(request.form.get("max_marks", 100) or 100)
+    if not title or not due:
+        flash("Title and due date are required.", "error")
+        return redirect(url_for("assignments", cid=cid))
+    execute("INSERT INTO assignments (id,class_id,teacher_id,title,description,due_date,max_marks,created_at) VALUES (?,?,?,?,?,?,?,?)",
+            (_uid(), cid, user["id"], title, desc, due, marks, _now()))
+    members = query("SELECT student_id FROM class_members WHERE class_id=?", (cid,))
+    for m in members:
+        push_notif(m["student_id"], f"New assignment in {cls['name']}: {title}", url_for("assignments", cid=cid), "info", user["id"])
+    flash("Assignment created.", "success")
+    return redirect(url_for("assignments", cid=cid))
+
+@app.route("/assignments/<aid>/submit", methods=["POST"])
+@login_required
+def submit_assignment(aid):
+    user = current_user()
+    asgn = query("SELECT * FROM assignments WHERE id=?", (aid,), one=True)
+    if not asgn: abort(404)
+    content   = request.form.get("content","").strip()
+    file_path, file_name = "", ""
+    if "file" in request.files:
+        f = request.files["file"]
+        if f and f.filename:
+            from werkzeug.utils import secure_filename
+            file_path, _, _ = save_upload(f)
+            file_name = secure_filename(f.filename)
+    if not content and not file_path:
+        flash("Please write something or attach a file.", "error")
+        return redirect(url_for("assignments", cid=asgn["class_id"]))
+    existing = query("SELECT id FROM submissions WHERE assignment_id=? AND student_id=?", (aid, user["id"]), one=True)
+    if existing:
+        execute("UPDATE submissions SET content=?,file_path=?,file_name=?,submitted_at=? WHERE id=?",
+                (content, file_path, file_name, _now(), existing["id"]))
+        flash("Submission updated.", "success")
+    else:
+        execute("INSERT INTO submissions (id,assignment_id,student_id,content,file_path,file_name,submitted_at) VALUES (?,?,?,?,?,?,?)",
+                (_uid(), aid, user["id"], content, file_path, file_name, _now()))
+        flash("Submitted!", "success")
+    return redirect(url_for("assignments", cid=asgn["class_id"]))
+
+@app.route("/assignments/<aid>/grade/<sid>", methods=["POST"])
+@login_required
+@roles_required("teacher","admin","super_admin")
+def grade_submission(aid, sid):
+    grade    = request.form.get("grade","").strip()
+    feedback = request.form.get("feedback","").strip()
+    sub = query("SELECT * FROM submissions WHERE id=?", (sid,), one=True)
+    if not sub: abort(404)
+    execute("UPDATE submissions SET grade=?,feedback=?,graded_at=? WHERE id=?", (grade, feedback, _now(), sid))
+    asgn = query("SELECT * FROM assignments WHERE id=?", (aid,), one=True)
+    push_notif(sub["student_id"], f"Your assignment has been graded: {grade}", url_for("assignments", cid=asgn["class_id"]), "info")
+    flash("Graded.", "success")
+    return redirect(url_for("view_submissions", aid=aid))
+
+@app.route("/assignments/<aid>/submissions")
+@login_required
+@roles_required("teacher","admin","super_admin")
+def view_submissions(aid):
+    asgn = query("SELECT a.*, c.name as class_name FROM assignments a JOIN classes c ON c.id=a.class_id WHERE a.id=?", (aid,), one=True)
+    if not asgn: abort(404)
+    subs = query("""SELECT s.*, u.username FROM submissions s JOIN users u ON s.student_id=u.id WHERE s.assignment_id=? ORDER BY s.submitted_at""", (aid,))
+    return render_template("submissions.html", asgn=asgn, subs=subs)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  QUIZZES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/classes/<int:cid>/quizzes")
+@login_required
+def quizzes(cid):
+    user  = current_user()
+    cls   = query("SELECT * FROM classes WHERE id=?", (cid,), one=True)
+    if not cls: abort(404)
+    qlist = query("SELECT q.*, (SELECT COUNT(*) FROM quiz_questions qq WHERE qq.quiz_id=q.id) as q_count, (SELECT COUNT(*) FROM quiz_attempts qa WHERE qa.quiz_id=q.id) as attempts FROM quizzes q WHERE q.class_id=? ORDER BY q.created_at DESC", (cid,))
+    my_attempts = {}
+    if user["role"] == "student":
+        atts = query("SELECT * FROM quiz_attempts WHERE student_id=?", (user["id"],))
+        my_attempts = {a["quiz_id"]: a for a in atts}
+    return render_template("quizzes.html", cls=cls, quizzes=qlist, my_attempts=my_attempts)
+
+@app.route("/classes/<int:cid>/quizzes/create", methods=["POST"])
+@login_required
+@roles_required("teacher","admin","super_admin")
+def create_quiz(cid):
+    user  = current_user()
+    cls   = query("SELECT * FROM classes WHERE id=?", (cid,), one=True)
+    if not cls: abort(404)
+    title = request.form.get("title","").strip()
+    if not title:
+        flash("Quiz title required.", "error")
+        return redirect(url_for("quizzes", cid=cid))
+    qid = _uid()
+    execute("INSERT INTO quizzes (id,class_id,teacher_id,title,is_open,created_at) VALUES (?,?,?,?,1,?)", (qid, cid, user["id"], title, _now()))
+    # Parse questions from form
+    i = 1
+    while request.form.get(f"q{i}"):
+        q = request.form.get(f"q{i}","").strip()
+        a = request.form.get(f"q{i}_a","").strip()
+        b = request.form.get(f"q{i}_b","").strip()
+        c = request.form.get(f"q{i}_c","").strip()
+        d = request.form.get(f"q{i}_d","").strip()
+        correct = request.form.get(f"q{i}_correct","a").strip().lower()
+        if q and a and b:
+            execute("INSERT INTO quiz_questions (id,quiz_id,question,option_a,option_b,option_c,option_d,correct,position) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (_uid(), qid, q, a, b, c or "", d or "", correct, i))
+        i += 1
+    flash("Quiz created!", "success")
+    return redirect(url_for("quizzes", cid=cid))
+
+@app.route("/quizzes/<qid>/take", methods=["GET","POST"])
+@login_required
+def take_quiz(qid):
+    user = current_user()
+    quiz = query("SELECT q.*, c.name as class_name, c.id as class_id FROM quizzes q JOIN classes c ON c.id=q.class_id WHERE q.id=?", (qid,), one=True)
+    if not quiz: abort(404)
+    already = query("SELECT * FROM quiz_attempts WHERE quiz_id=? AND student_id=?", (qid, user["id"]), one=True)
+    if already:
+        return redirect(url_for("quiz_results", qid=qid))
+    questions = query("SELECT * FROM quiz_questions WHERE quiz_id=? ORDER BY position", (qid,))
+    if request.method == "POST":
+        import json
+        score = 0
+        answers = {}
+        for q in questions:
+            chosen = request.form.get(f"q_{q['id']}", "").lower()
+            answers[q["id"]] = chosen
+            if chosen == q["correct"].lower():
+                score += 1
+        execute("INSERT INTO quiz_attempts (id,quiz_id,student_id,score,total,answers,submitted_at) VALUES (?,?,?,?,?,?,?)",
+                (_uid(), qid, user["id"], score, len(questions), json.dumps(answers), _now()))
+        return redirect(url_for("quiz_results", qid=qid))
+    return render_template("take_quiz.html", quiz=quiz, questions=questions)
+
+@app.route("/quizzes/<qid>/results")
+@login_required
+def quiz_results(qid):
+    user    = current_user()
+    quiz    = query("SELECT q.*, c.name as class_name, c.id as class_id FROM quizzes q JOIN classes c ON c.id=q.class_id WHERE q.id=?", (qid,), one=True)
+    if not quiz: abort(404)
+    attempt = query("SELECT * FROM quiz_attempts WHERE quiz_id=? AND student_id=?", (qid, user["id"]), one=True)
+    questions = query("SELECT * FROM quiz_questions WHERE quiz_id=? ORDER BY position", (qid,))
+    leaderboard = query("""SELECT qa.score, qa.total, u.username FROM quiz_attempts qa JOIN users u ON u.id=qa.student_id WHERE qa.quiz_id=? ORDER BY qa.score DESC LIMIT 20""", (qid,))
+    import json
+    answers = json.loads(attempt["answers"]) if attempt and attempt["answers"] else {}
+    return render_template("quiz_results.html", quiz=quiz, attempt=attempt, questions=questions, leaderboard=leaderboard, answers=answers)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  ATTENDANCE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/classes/<int:cid>/attendance")
+@login_required
+def attendance(cid):
+    user = current_user()
+    cls  = query("SELECT * FROM classes WHERE id=?", (cid,), one=True)
+    if not cls: abort(404)
+    sessions = query("""SELECT s.*, (SELECT COUNT(*) FROM attendance_records r WHERE r.session_id=s.id) as present_count FROM attendance_sessions s WHERE s.class_id=? ORDER BY s.created_at DESC""", (cid,))
+    active_session = None
+    from datetime import datetime, timezone
+    now_str = _now()
+    for s in sessions:
+        if s["open_until"] > now_str:
+            active_session = s
+            break
+    my_records = {}
+    if user["role"] == "student":
+        recs = query("SELECT session_id FROM attendance_records WHERE student_id=?", (user["id"],))
+        my_records = {r["session_id"] for r in recs}
+    members_count = query("SELECT COUNT(*) as c FROM class_members WHERE class_id=?", (cid,), one=True)["c"]
+    return render_template("attendance.html", cls=cls, sessions=sessions, active_session=active_session, my_records=my_records, members_count=members_count)
+
+@app.route("/classes/<int:cid>/attendance/open", methods=["POST"])
+@login_required
+@roles_required("teacher","admin","super_admin")
+def open_attendance(cid):
+    user  = current_user()
+    cls   = query("SELECT * FROM classes WHERE id=?", (cid,), one=True)
+    if not cls: abort(404)
+    label = request.form.get("label", "Attendance").strip() or "Attendance"
+    minutes = int(request.form.get("minutes", 5) or 5)
+    from datetime import datetime, timezone, timedelta
+    open_until = (datetime.now(timezone.utc) + timedelta(minutes=minutes)).strftime("%Y-%m-%d %H:%M:%S")
+    execute("INSERT INTO attendance_sessions (id,class_id,teacher_id,label,open_until,created_at) VALUES (?,?,?,?,?,?)",
+            (_uid(), cid, user["id"], label, open_until, _now()))
+    members = query("SELECT student_id FROM class_members WHERE class_id=?", (cid,))
+    for m in members:
+        push_notif(m["student_id"], f"Attendance open for {cls['name']} — mark yourself present!", url_for("attendance", cid=cid), "info", user["id"])
+    flash(f"Attendance session opened for {minutes} minutes.", "success")
+    return redirect(url_for("attendance", cid=cid))
+
+@app.route("/attendance/<sid>/mark", methods=["POST"])
+@login_required
+def mark_attendance(sid):
+    user = current_user()
+    session = query("SELECT * FROM attendance_sessions WHERE id=?", (sid,), one=True)
+    if not session: abort(404)
+    if session["open_until"] < _now():
+        flash("This attendance session has closed.", "error")
+        return redirect(url_for("attendance", cid=session["class_id"]))
+    existing = query("SELECT 1 FROM attendance_records WHERE session_id=? AND student_id=?", (sid, user["id"]), one=True)
+    if not existing:
+        execute("INSERT INTO attendance_records (id,session_id,student_id,marked_at) VALUES (?,?,?,?)",
+                (_uid(), sid, user["id"], _now()))
+        flash("Marked present!", "success")
+    else:
+        flash("Already marked.", "info")
+    return redirect(url_for("attendance", cid=session["class_id"]))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  RESOURCE LIBRARY
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/classes/<int:cid>/resources")
+@login_required
+def resources(cid):
+    cls  = query("SELECT * FROM classes WHERE id=?", (cid,), one=True)
+    if not cls: abort(404)
+    res  = query("SELECT r.*, u.username as uploader FROM resources r JOIN users u ON u.id=r.teacher_id WHERE r.class_id=? ORDER BY r.subject_tag, r.created_at DESC", (cid,))
+    tags = list({r["subject_tag"] for r in res if r["subject_tag"]})
+    return render_template("resources.html", cls=cls, resources=res, tags=tags)
+
+@app.route("/classes/<int:cid>/resources/upload", methods=["POST"])
+@login_required
+@roles_required("teacher","admin","super_admin")
+def upload_resource(cid):
+    user  = current_user()
+    cls   = query("SELECT * FROM classes WHERE id=?", (cid,), one=True)
+    if not cls: abort(404)
+    title = request.form.get("title","").strip()
+    desc  = request.form.get("description","").strip()
+    tag   = request.form.get("subject_tag","").strip()
+    if "file" not in request.files:
+        flash("No file selected.", "error")
+        return redirect(url_for("resources", cid=cid))
+    f = request.files["file"]
+    if not f.filename:
+        flash("No file selected.", "error")
+        return redirect(url_for("resources", cid=cid))
+    from werkzeug.utils import secure_filename
+    file_path, _, _ = save_upload(f)
+    file_name = secure_filename(f.filename)
+    if not title: title = file_name
+    execute("INSERT INTO resources (id,class_id,teacher_id,title,description,file_path,file_name,subject_tag,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+            (_uid(), cid, user["id"], title, desc, file_path, file_name, tag, _now()))
+    flash("Resource uploaded.", "success")
+    return redirect(url_for("resources", cid=cid))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  POLLS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/polls/create", methods=["POST"])
+@login_required
+def create_poll():
+    user = current_user()
+    q    = request.form.get("question","").strip()
+    a    = request.form.get("opt_a","").strip()
+    b    = request.form.get("opt_b","").strip()
+    c    = request.form.get("opt_c","").strip()
+    d    = request.form.get("opt_d","").strip()
+    ends = request.form.get("ends_at","").strip()
+    if not q or not a or not b:
+        flash("Question and at least 2 options required.", "error")
+        return redirect(url_for("feed"))
+    execute("INSERT INTO polls (id,author_id,question,opt_a,opt_b,opt_c,opt_d,scope,ends_at,created_at) VALUES (?,?,?,?,?,?,?,'feed',?,?)",
+            (_uid(), user["id"], q, a, b, c, d, ends, _now()))
+    flash("Poll posted!", "success")
+    return redirect(url_for("feed"))
+
+@app.route("/polls/<pid>/vote", methods=["POST"])
+@login_required
+def vote_poll(pid):
+    user   = current_user()
+    choice = request.form.get("choice","").strip()
+    poll   = query("SELECT * FROM polls WHERE id=?", (pid,), one=True)
+    if not poll: abort(404)
+    if poll["ends_at"] and poll["ends_at"] < _now():
+        flash("This poll has ended.", "error")
+        return redirect(url_for("feed"))
+    existing = query("SELECT 1 FROM poll_votes WHERE poll_id=? AND user_id=?", (pid, user["id"]), one=True)
+    if existing:
+        flash("Already voted.", "info")
+    elif choice in ("a","b","c","d"):
+        execute("INSERT INTO poll_votes (id,poll_id,user_id,choice) VALUES (?,?,?,?)", (_uid(), pid, user["id"], choice))
+    return redirect(url_for("feed"))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  EVENTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/events")
+@login_required
+def events():
+    evs = query("SELECT e.*, u.username as author_name FROM events e JOIN users u ON u.id=e.author_id WHERE e.event_date >= date('now') ORDER BY e.event_date ASC LIMIT 50")
+    past = query("SELECT e.*, u.username as author_name FROM events e JOIN users u ON u.id=e.author_id WHERE e.event_date < date('now') ORDER BY e.event_date DESC LIMIT 10")
+    return render_template("events.html", events=evs, past=past)
+
+@app.route("/events/create", methods=["POST"])
+@login_required
+@roles_required("teacher","admin","super_admin")
+def create_event():
+    user  = current_user()
+    title = request.form.get("title","").strip()
+    desc  = request.form.get("description","").strip()
+    date  = request.form.get("event_date","").strip()
+    time  = request.form.get("event_time","").strip()
+    loc   = request.form.get("location","").strip()
+    if not title or not date:
+        flash("Title and date required.", "error")
+        return redirect(url_for("events"))
+    execute("INSERT INTO events (id,author_id,title,description,event_date,event_time,location,created_at) VALUES (?,?,?,?,?,?,?,?)",
+            (_uid(), user["id"], title, desc, date, time, loc, _now()))
+    flash("Event created.", "success")
+    return redirect(url_for("events"))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  PEER TUTORING
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/tutoring")
+@login_required
+def tutoring():
+    posts = query("SELECT t.*, u.username as author_name FROM tutoring_posts t JOIN users u ON u.id=t.author_id WHERE t.is_resolved=0 ORDER BY t.created_at DESC LIMIT 60")
+    return render_template("tutoring.html", posts=posts)
+
+@app.route("/tutoring/post", methods=["POST"])
+@login_required
+def tutoring_post():
+    user     = current_user()
+    ptype    = request.form.get("post_type","need")
+    subject  = request.form.get("subject","").strip()
+    desc     = request.form.get("description","").strip()
+    if not subject:
+        flash("Subject required.", "error")
+        return redirect(url_for("tutoring"))
+    execute("INSERT INTO tutoring_posts (id,author_id,post_type,subject,description,created_at) VALUES (?,?,?,?,?,?)",
+            (_uid(), user["id"], ptype, subject, desc, _now()))
+    flash("Posted to tutoring board.", "success")
+    return redirect(url_for("tutoring"))
+
+@app.route("/tutoring/<tid>/resolve", methods=["POST"])
+@login_required
+def resolve_tutoring(tid):
+    user = current_user()
+    post = query("SELECT * FROM tutoring_posts WHERE id=?", (tid,), one=True)
+    if not post: abort(404)
+    if post["author_id"] != user["id"] and user["role"] not in ("admin","super_admin"):
+        abort(403)
+    execute("UPDATE tutoring_posts SET is_resolved=1 WHERE id=?", (tid,))
+    return redirect(url_for("tutoring"))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  STUDY GROUPS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import secrets as _secrets
+
+@app.route("/groups")
+@login_required
+def study_groups():
+    user   = current_user()
+    my_groups = query("""SELECT sg.* FROM study_groups sg JOIN study_group_members sgm ON sgm.group_id=sg.id WHERE sgm.user_id=? ORDER BY sg.created_at DESC""", (user["id"],))
+    return render_template("study_groups.html", my_groups=my_groups)
+
+@app.route("/groups/create", methods=["POST"])
+@login_required
+def create_study_group():
+    user = current_user()
+    name = request.form.get("name","").strip()
+    desc = request.form.get("description","").strip()
+    if not name:
+        flash("Group name required.", "error")
+        return redirect(url_for("study_groups"))
+    gid  = _uid()
+    code = _secrets.token_urlsafe(6)
+    execute("INSERT INTO study_groups (id,name,description,creator_id,invite_code,created_at) VALUES (?,?,?,?,?,?)",
+            (gid, name, desc, user["id"], code, _now()))
+    execute("INSERT INTO study_group_members (group_id,user_id,joined_at) VALUES (?,?,?)", (gid, user["id"], _now()))
+    flash(f"Group created! Invite code: {code}", "success")
+    return redirect(url_for("group_detail", gid=gid))
+
+@app.route("/groups/join", methods=["POST"])
+@login_required
+def join_study_group():
+    user = current_user()
+    code = request.form.get("invite_code","").strip()
+    grp  = query("SELECT * FROM study_groups WHERE invite_code=?", (code,), one=True)
+    if not grp:
+        flash("Invalid invite code.", "error")
+        return redirect(url_for("study_groups"))
+    existing = query("SELECT 1 FROM study_group_members WHERE group_id=? AND user_id=?", (grp["id"], user["id"]), one=True)
+    if not existing:
+        execute("INSERT INTO study_group_members (group_id,user_id,joined_at) VALUES (?,?,?)", (grp["id"], user["id"], _now()))
+    return redirect(url_for("group_detail", gid=grp["id"]))
+
+@app.route("/groups/<gid>", methods=["GET","POST"])
+@login_required
+def group_detail(gid):
+    user = current_user()
+    grp  = query("SELECT * FROM study_groups WHERE id=?", (gid,), one=True)
+    if not grp: abort(404)
+    member = query("SELECT 1 FROM study_group_members WHERE group_id=? AND user_id=?", (gid, user["id"]), one=True)
+    if not member and user["role"] not in ("admin","super_admin"): abort(403)
+    if request.method == "POST":
+        content = request.form.get("content","").strip()
+        if content:
+            execute("INSERT INTO study_group_messages (id,group_id,author_id,content,created_at) VALUES (?,?,?,?,?)",
+                    (_uid(), gid, user["id"], content, _now()))
+        return redirect(url_for("group_detail", gid=gid))
+    msgs    = query("""SELECT m.*, u.username FROM study_group_messages m JOIN users u ON u.id=m.author_id WHERE m.group_id=? ORDER BY m.created_at ASC LIMIT 200""", (gid,))
+    members = query("""SELECT u.username, u.role FROM users u JOIN study_group_members sgm ON sgm.user_id=u.id WHERE sgm.group_id=?""", (gid,))
+    return render_template("group_detail.html", grp=grp, msgs=msgs, members=members)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  SHOUTOUTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/shoutouts")
+@login_required
+def shoutouts():
+    user = current_user()
+    posts = query("SELECT * FROM shoutouts WHERE is_approved=1 ORDER BY created_at DESC LIMIT 60")
+    pending = []
+    if user["role"] in ("admin","super_admin"):
+        pending = query("SELECT * FROM shoutouts WHERE is_approved=0 ORDER BY created_at DESC")
+    return render_template("shoutouts.html", posts=posts, pending=pending)
+
+@app.route("/shoutouts/post", methods=["POST"])
+@login_required
+def post_shoutout():
+    content = request.form.get("content","").strip()
+    if not content or len(content) > 300:
+        flash("Shoutout must be 1-300 characters.", "error")
+        return redirect(url_for("shoutouts"))
+    execute("INSERT INTO shoutouts (id,content,is_approved,created_at) VALUES (?,?,0,?)", (_uid(), content, _now()))
+    flash("Shoutout submitted — pending approval.", "success")
+    return redirect(url_for("shoutouts"))
+
+@app.route("/shoutouts/<sid>/approve", methods=["POST"])
+@login_required
+@roles_required("admin","super_admin")
+def approve_shoutout(sid):
+    execute("UPDATE shoutouts SET is_approved=1 WHERE id=?", (sid,))
+    return redirect(url_for("shoutouts"))
+
+@app.route("/shoutouts/<sid>/delete", methods=["POST"])
+@login_required
+@roles_required("admin","super_admin")
+def delete_shoutout(sid):
+    execute("DELETE FROM shoutouts WHERE id=?", (sid,))
+    return redirect(url_for("shoutouts"))
+

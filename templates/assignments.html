@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Assignments — {{ cls.name }}{% endblock %}
+{% block extra_head %}
+<style>
+.edu-hero{background:linear-gradient(135deg,#1a237e 0%,#283593 60%,#3949ab 100%);border-radius:var(--r);padding:28px 32px;color:#fff;margin-bottom:24px}
+.edu-hero h1{font-family:var(--font-h);font-size:22px;font-weight:800;margin-bottom:4px}
+.edu-hero p{font-size:13px;opacity:.75}
+.edu-back{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:rgba(255,255,255,.7);margin-bottom:16px;text-decoration:none}
+.edu-back:hover{color:#fff}
+.asgn-grid{display:grid;gap:14px}
+.asgn-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);padding:20px 24px;transition:box-shadow .15s}
+.asgn-card:hover{box-shadow:var(--shadow)}
+.asgn-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.asgn-title{font-size:17px;font-weight:700;color:var(--ink)}
+.asgn-meta{font-size:12px;color:var(--ink3);margin-top:4px;display:flex;gap:12px;flex-wrap:wrap}
+.asgn-desc{font-size:14px;color:var(--ink2);margin:10px 0;line-height:1.6}
+.due-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700}
+.due-ok{background:#e8f5e9;color:#1b5e20}
+.due-soon{background:#fff8e1;color:#7a5c00}
+.due-late{background:#ffebee;color:#b71c1c}
+.grade-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:800;background:var(--navy);color:#fff}
+.submit-form{margin-top:14px;padding-top:14px;border-top:1px dashed var(--border-l)}
+.submit-form textarea{width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:13px;font-family:inherit;resize:vertical;min-height:70px}
+.submit-form textarea:focus{outline:none;border-color:var(--navy)}
+.submitted-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;background:#e8f5e9;color:#1b5e20}
+.create-panel{background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);padding:24px;margin-bottom:24px}
+.create-panel h2{font-size:16px;font-weight:700;margin-bottom:16px}
+.form-row{margin-bottom:12px}
+.form-row label{display:block;font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:5px}
+.form-row input,.form-row textarea,.form-row select{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:14px;font-family:inherit}
+.form-row input:focus,.form-row textarea:focus{outline:none;border-color:var(--navy)}
+.btn-primary{padding:10px 22px;background:var(--navy);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer}
+.btn-primary:hover{background:var(--navy-d)}
+.progress-bar-wrap{height:6px;background:#f0f2f5;border-radius:3px;margin-top:10px;overflow:hidden}
+.progress-bar-fill{height:100%;background:var(--navy);border-radius:3px;transition:width .3s}
+</style>
+{% endblock %}
+{% block content %}
+<a href="{{ url_for('class_detail', cid=cls.id) }}" class="edu-back">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+  Back to {{ cls.name }}
+</a>
+<div class="edu-hero">
+  <h1>📋 Assignments</h1>
+  <p>{{ cls.name }} · {{ asgns|length }} assignment{{ 's' if asgns|length != 1 }}</p>
+</div>
+
+{% if cu.role in ('teacher','admin','super_admin') %}
+<div class="create-panel">
+  <h2>➕ Create New Assignment</h2>
+  <form method="POST" action="{{ url_for('create_assignment', cid=cls.id) }}">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-row"><label>Title *</label><input name="title" required placeholder="e.g. Chapter 5 Essay"></div>
+      <div class="form-row"><label>Due Date *</label><input type="datetime-local" name="due_date" required></div>
+    </div>
+    <div class="form-row"><label>Description</label><textarea name="description" rows="2" placeholder="What should students do?"></textarea></div>
+    <div class="form-row" style="max-width:200px"><label>Max Marks</label><input type="number" name="max_marks" value="100" min="1" max="1000"></div>
+    <button type="submit" class="btn-primary">Create Assignment</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="asgn-grid">
+{% for a in asgns %}
+{% set sub = my_subs.get(a.id) %}
+{% set now_str = _now() %}
+{% set is_late = a.due_date < now_str %}
+<div class="asgn-card">
+  <div class="asgn-top">
+    <div>
+      <div class="asgn-title">{{ a.title }}</div>
+      <div class="asgn-meta">
+        <span>Max marks: <strong>{{ a.max_marks }}</strong></span>
+        <span>{{ a.sub_count }} submission{{ 's' if a.sub_count != 1 }}</span>
+      </div>
+    </div>
+    <div>
+      {% if is_late %}
+        <span class="due-badge due-late">⏰ Due: {{ a.due_date[:10] }}</span>
+      {% elif a.due_date[:10] == _now()[:10] %}
+        <span class="due-badge due-soon">⚡ Due Today</span>
+      {% else %}
+        <span class="due-badge due-ok">📅 Due: {{ a.due_date[:10] }}</span>
+      {% endif %}
+    </div>
+  </div>
+  {% if a.description %}<div class="asgn-desc">{{ a.description }}</div>{% endif %}
+
+  {% if cu.role == 'student' %}
+    {% if sub %}
+      <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <span class="submitted-chip">✅ Submitted {{ _rel(sub.submitted_at) }}</span>
+        {% if sub.grade %}<span class="grade-badge">{{ sub.grade }} / {{ a.max_marks }}</span>{% endif %}
+        {% if sub.feedback %}<div style="font-size:13px;color:var(--ink2);margin-top:6px;flex-basis:100%">💬 Teacher feedback: <em>{{ sub.feedback }}</em></div>{% endif %}
+      </div>
+    {% endif %}
+    {% if not sub or not sub.grade %}
+    <div class="submit-form">
+      <form method="POST" action="{{ url_for('submit_assignment', aid=a.id) }}" enctype="multipart/form-data">
+        <div class="form-row"><label>{{ 'Resubmit' if sub else 'Your Answer' }}</label>
+          <textarea name="content" rows="3" placeholder="Write your answer here…">{{ sub.content if sub }}</textarea>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <label style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border:1.5px dashed var(--border);border-radius:var(--r-sm);cursor:pointer;font-size:13px;color:var(--ink2)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Attach file <input type="file" name="file" style="display:none" onchange="this.previousSibling.textContent=this.files[0]?.name||'Attach file'">
+          </label>
+          <button type="submit" class="btn-primary" style="padding:8px 18px">{{ 'Resubmit' if sub else 'Submit' }}</button>
+        </div>
+      </form>
+    </div>
+    {% endif %}
+  {% elif cu.role in ('teacher','admin','super_admin') %}
+    <div style="margin-top:12px">
+      <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:{{ [(a.sub_count / members_count * 100)|int, 100]|min if members_count else 0 }}%"></div></div>
+      <div style="font-size:12px;color:var(--ink3);margin-top:5px">{{ a.sub_count }}/{{ members_count }} submitted</div>
+      <a href="{{ url_for('view_submissions', aid=a.id) }}" class="btn-primary" style="display:inline-block;margin-top:10px;padding:8px 16px;text-decoration:none;font-size:13px">View Submissions</a>
+    </div>
+  {% endif %}
+</div>
+{% else %}
+<div style="text-align:center;padding:48px;color:var(--ink3)">No assignments yet.</div>
+{% endfor %}
+</div>
+{% endblock %}
