@@ -1227,6 +1227,72 @@ def serve_media(filename):
     abort(404)
 
 
+@app.route("/test-download")
+@login_required  
+def test_download():
+    """Debug route - tests Cloudinary connectivity step by step."""
+    import urllib.request as _urlreq
+    import cloudinary.utils
+    import traceback
+    results = {}
+
+    # Step 1: Check env vars
+    cloud = os.environ.get("CLOUDINARY_CLOUD_NAME","")
+    key   = os.environ.get("CLOUDINARY_API_KEY","")
+    sec   = os.environ.get("CLOUDINARY_API_SECRET","")
+    results["env"] = {
+        "cloud_name": cloud[:6]+"..." if cloud else "MISSING",
+        "api_key":    key[:6]+"..."   if key   else "MISSING",
+        "api_secret": sec[:6]+"..."   if sec   else "MISSING",
+    }
+
+    # Step 2: Try generating a signed URL
+    try:
+        signed, _ = cloudinary.utils.cloudinary_url(
+            "eia_voice/test",
+            resource_type="raw", type="upload",
+            sign_url=True, secure=True,
+        )
+        results["signed_url"] = signed[:80]+"..."
+    except Exception as e:
+        results["signed_url_error"] = str(e)
+
+    # Step 3: Try fetching a real file from DB
+    try:
+        row = query("SELECT media_path, media_name FROM posts WHERE media_type='document' LIMIT 1", one=True)
+        if not row:
+            row = query("SELECT media_path, media_name FROM channel_posts WHERE media_type='document' LIMIT 1", one=True)
+        if row:
+            results["sample_url"] = row["media_path"]
+            results["sample_name"] = row["media_name"]
+            # Try fetching it
+            import re as _re
+            m = _re.search(r'/upload/(?:v\d+/)?(.+?)(?:\?|$)', row["media_path"])
+            if m:
+                pid = m.group(1)
+                results["public_id"] = pid
+                signed2, _ = cloudinary.utils.cloudinary_url(
+                    pid, resource_type="raw", type="upload",
+                    sign_url=True, secure=True,
+                )
+                results["signed_url2"] = signed2[:120]
+                req = _urlreq.Request(signed2, headers={"User-Agent":"Mozilla/5.0"})
+                with _urlreq.urlopen(req, timeout=15) as resp:
+                    data = resp.read(100)
+                results["fetch_ok"] = True
+                results["bytes_preview"] = repr(data[:20])
+            else:
+                results["parse_error"] = "Could not extract public_id"
+        else:
+            results["no_doc"] = "No documents in DB yet"
+    except Exception as e:
+        results["fetch_error"] = str(e)
+        results["traceback"] = traceback.format_exc()
+
+    from flask import jsonify
+    return jsonify(results)
+
+
 @app.route("/download")
 @login_required
 def download_media():
