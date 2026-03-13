@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,minimum-scale=1,maximum-scale=5">
   <title>{% block title %}EIA Voice{% endblock %} — EIA Voice</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
@@ -60,7 +60,7 @@
   }
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
-  body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:100vh;display:flex;-webkit-font-smoothing:antialiased;font-size:14px}
+  body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:100vh;display:flex;-webkit-font-smoothing:antialiased;font-size:14px;overflow-x:hidden;width:100%}
   a{color:inherit;text-decoration:none}
   input,textarea,select,button{font-family:inherit}
   svg.ic{display:inline-block;vertical-align:middle;flex-shrink:0}
@@ -119,7 +119,7 @@
   .more-drawer-logout:hover{background:#fff5f5}
 
   /* MAIN */
-  .main-wrap{margin-left:var(--nav-w);flex:1;min-width:0}
+  .main-wrap{margin-left:var(--nav-w);flex:1;min-width:0;max-width:100%;overflow-x:hidden}
   .page-center{max-width:640px;margin:0 auto;padding:28px 16px 100px}
   .page-center.wide{max-width:1000px}
 
@@ -325,8 +325,152 @@
   .anon-box .anon-lbl{font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.07em}
   .anon-box .anon-val{font-size:22px;font-weight:700;color:var(--navy);margin-top:3px;font-family:var(--font-h)}
 
-  @media(max-width:820px){.sidebar{display:none}.main-wrap{margin-left:0}.mobile-nav{display:block}.mobile-topbar{display:flex}.page-center{padding-bottom:88px;padding-top:8px}.people-grid{grid-template-columns:repeat(auto-fill,minmax(155px,1fr))}.chat-page{height:calc(100vh - 56px - 60px - max(8px,env(safe-area-inset-bottom)));}}
-  @media(max-width:480px){.profile-cover{height:130px}.av-xxl{width:90px;height:90px;font-size:30px}.stats-grid{grid-template-columns:repeat(2,1fr)}}
+
+  /* ══════════════════════════════════════════════════════
+     RESPONSIVE — works on all Android phones, iPhones,
+     tablets, and any screen ≤ 820px
+  ══════════════════════════════════════════════════════ */
+
+  /* Tablet and below: hide desktop sidebar, show mobile nav */
+  @media (max-width: 820px) {
+    .sidebar { display: none !important; }
+    .main-wrap { margin-left: 0 !important; width: 100% !important; min-width: 0; }
+    .mobile-nav { display: block; }
+    .mobile-topbar { display: flex; }
+
+    /* Give the page proper breathing room above/below nav bars */
+    .page-center {
+      max-width: 100% !important;
+      padding: 12px 14px calc(74px + env(safe-area-inset-bottom)) 14px !important;
+    }
+    .page-center.wide { max-width: 100% !important; }
+
+    /* Posts — readable size on tablets */
+    .post { margin-bottom: 14px; }
+    .post-caption { font-size: 15px; line-height: 1.7; }
+    .post-author-name { font-size: 15px; }
+    .react-btn { font-size: 14px; padding: 8px 10px; }
+
+    /* Prevent iOS input zoom — font must be ≥ 16px */
+    .field input, .field textarea, .field select,
+    .composer textarea, .chat-inp, .comment-inp,
+    .c-select { font-size: 16px !important; }
+
+    /* Chat sizing */
+    .chat-page { height: calc(100dvh - 57px - 62px - max(0px, env(safe-area-inset-bottom))); }
+
+    /* Profile */
+    .profile-cover { height: 140px; }
+    .stats-grid { grid-template-columns: repeat(3, 1fr); }
+    .profile-stats { gap: 20px; }
+
+    /* People grid */
+    .people-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+
+    /* Data tables — allow horizontal scroll */
+    .data-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  }
+
+  /* Phone: ≤ 480px */
+  @media (max-width: 480px) {
+
+    /* Slightly larger base so text is not tiny */
+    body { font-size: 15px; }
+
+    /* Page — tighter side padding on small phones */
+    .page-center {
+      padding: 8px 12px calc(72px + env(safe-area-inset-bottom)) 12px !important;
+    }
+
+    /* Posts fill edge to edge — feels native on Android */
+    .post {
+      border-left: none !important;
+      border-right: none !important;
+      border-radius: 0 !important;
+      margin-left: -12px !important;
+      margin-right: -12px !important;
+      margin-bottom: 8px !important;
+    }
+    .composer {
+      border-left: none !important;
+      border-right: none !important;
+      border-radius: 0 !important;
+      margin-left: -12px !important;
+      margin-right: -12px !important;
+      margin-bottom: 8px !important;
+    }
+    .post-caption { font-size: 15px; line-height: 1.72; }
+    .post-author-name { font-size: 15px; }
+    .post-header { padding: 12px 14px; }
+    .post-reactions { padding: 8px 10px; }
+    .react-btn { padding: 8px 10px; font-size: 14px; }
+    .comments-wrap { padding: 0 14px 12px; }
+    .comment-text { font-size: 14px; }
+
+    /* Avatars — scale down a touch */
+    .av-xl  { width: 72px; height: 72px; font-size: 24px; }
+    .av-xxl { width: 84px; height: 84px; font-size: 28px; border-width: 2px; }
+    .av-lg  { width: 48px; height: 48px; font-size: 17px; }
+
+    /* Profile */
+    .profile-cover { height: 110px; }
+    .profile-name { font-size: 20px; }
+    .profile-body { padding: 0 16px 20px; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .p-stat-n { font-size: 18px; }
+    .profile-stats { gap: 18px; }
+
+    /* People grid — 2 cols */
+    .people-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .person-card { padding: 14px 10px; gap: 5px; }
+    .person-name { font-size: 13px; }
+
+    /* Buttons — good tap target */
+    .btn { font-size: 14px; padding: 10px 16px; }
+    .btn-sm { font-size: 13px; padding: 7px 13px; }
+
+    /* Headings */
+    .page-hd h1 { font-size: 20px; }
+    .profile-name { font-size: 20px; }
+
+    /* Prevent iOS auto-zoom on inputs */
+    .field input, .field textarea, .field select,
+    .composer textarea, .chat-inp, .comment-inp,
+    .c-select { font-size: 16px !important; }
+
+    /* More drawer — 3 columns fits better on small phones */
+    .more-drawer-grid { grid-template-columns: repeat(3, 1fr); }
+
+    /* Chat */
+    .chat-page { height: calc(100dvh - 57px - 62px - max(0px, env(safe-area-inset-bottom))); }
+    .chat-messages { padding: 12px 12px; }
+    .msg-bubble { font-size: 15px; max-width: 82%; }
+    .chat-inp { font-size: 16px !important; }
+
+    /* Notifications */
+    .notif-text { font-size: 14px; }
+    .notif-item { padding: 12px 14px; }
+
+    /* Conversation list */
+    .conv-preview { max-width: 160px; font-size: 13px; }
+
+    /* Tables scroll */
+    .data-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  }
+
+  /* Very small phones: ≤ 360px (older Android) */
+  @media (max-width: 360px) {
+    body { font-size: 14px; }
+    .page-center {
+      padding: 8px 10px calc(70px + env(safe-area-inset-bottom)) 10px !important;
+    }
+    .post  { margin-left: -10px !important; margin-right: -10px !important; }
+    .composer { margin-left: -10px !important; margin-right: -10px !important; }
+    .mobile-nav-btn { padding: 4px 5px; min-width: 34px; }
+    .mobile-nav-btn span { font-size: 8px; }
+    .more-drawer-grid { grid-template-columns: repeat(3, 1fr); gap: 2px; }
+    .more-drawer-item { padding: 12px 4px; font-size: 10px; }
+  }
   </style>
   {% block extra_head %}{% endblock %}
 </head>
