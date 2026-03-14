@@ -58,6 +58,195 @@
 .doc-link:disabled { opacity: 0.6; cursor: wait; }
 .doc-link svg { flex-shrink: 0; }
 
+  /* ── Status bar ─────────────────────────────────── */
+  .status-bar {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    margin-bottom: 14px;
+    padding: 14px 12px;
+    overflow: hidden;
+  }
+  .status-scroll {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .status-scroll::-webkit-scrollbar { display: none; }
+  .status-bubble {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    flex-shrink: 0;
+    min-width: 62px;
+  }
+  .status-ring {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    padding: 2.5px;
+    background: conic-gradient(var(--navy) 0%, var(--lime) 100%);
+    flex-shrink: 0;
+  }
+  .status-ring.viewed {
+    background: #ccc;
+  }
+  .status-ring.mine {
+    background: conic-gradient(var(--navy), #3d42b8, var(--lime));
+  }
+  .status-ring-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 2.5px solid var(--white);
+    overflow: hidden;
+    background: var(--navy);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 18px;
+    color: #fff;
+  }
+  .status-ring-inner img {
+    width: 100%; height: 100%; object-fit: cover;
+  }
+  .status-add-ring {
+    background: var(--blue-l);
+  }
+  .status-add-icon {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--navy);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700;
+    border: 2px solid var(--white);
+    position: absolute;
+    bottom: 0; right: 0;
+  }
+  .status-ring-wrap {
+    position: relative;
+  }
+  .status-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink2);
+    max-width: 62px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  /* ── Status Viewer Modal ─────────────────────────── */
+  .sv-overlay {
+    position: fixed; inset: 0; z-index: 800;
+    background: #000;
+    display: none; align-items: center; justify-content: center;
+  }
+  .sv-overlay.open { display: flex; }
+  .sv-stage {
+    width: 100%; max-width: 420px; height: 100%;
+    max-height: 100svh;
+    position: relative;
+    display: flex; flex-direction: column;
+  }
+  /* Progress strips */
+  .sv-progress-row {
+    display: flex; gap: 3px;
+    padding: 10px 12px 6px;
+    position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+  }
+  .sv-prog-seg {
+    flex: 1; height: 3px; border-radius: 2px;
+    background: rgba(255,255,255,.3); overflow: hidden;
+  }
+  .sv-prog-fill {
+    height: 100%; width: 0%; background: #fff;
+    transition: width linear;
+  }
+  /* Header */
+  .sv-header {
+    position: absolute; top: 28px; left: 0; right: 0;
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px; z-index: 5;
+  }
+  .sv-author-name { color: #fff; font-weight: 700; font-size: 14px; flex: 1; }
+  .sv-time { color: rgba(255,255,255,.65); font-size: 12px; }
+  .sv-close {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(0,0,0,.4); border: none; color: #fff;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  /* Content area */
+  .sv-content {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .sv-bg {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sv-text {
+    position: relative; z-index: 2;
+    color: #fff; font-size: 22px; font-weight: 700;
+    text-align: center; padding: 32px 28px;
+    line-height: 1.45; text-shadow: 0 2px 8px rgba(0,0,0,.4);
+    max-width: 340px;
+  }
+  .sv-img { width: 100%; height: 100%; object-fit: contain; }
+  /* Nav zones */
+  .sv-prev-zone, .sv-next-zone {
+    position: absolute; top: 0; bottom: 0; width: 40%;
+    z-index: 10; cursor: pointer;
+  }
+  .sv-prev-zone { left: 0; }
+  .sv-next-zone { right: 0; }
+  /* Views + delete bar */
+  .sv-footer {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px max(16px,env(safe-area-inset-bottom));
+    background: linear-gradient(to top, rgba(0,0,0,.7) 0%, transparent 100%);
+    z-index: 5;
+  }
+  .sv-views { color: rgba(255,255,255,.8); font-size: 13px; display: flex; align-items: center; gap: 5px; }
+  .sv-delete {
+    margin-left: auto; background: rgba(237,73,86,.3); border: 1px solid rgba(237,73,86,.5);
+    color: #fff; border-radius: 20px; padding: 5px 14px; font-size: 12px;
+    font-weight: 700; cursor: pointer;
+  }
+
+  /* ── Post status form (modal) ───────────────────── */
+  .post-status-overlay {
+    position: fixed; inset: 0; z-index: 700;
+    background: rgba(0,0,0,.5);
+    display: none; align-items: flex-end; justify-content: center;
+  }
+  .post-status-overlay.open { display: flex; }
+  @media(min-width:600px){ .post-status-overlay { align-items: center; } }
+  .post-status-box {
+    background: var(--white);
+    border-radius: 18px 18px 0 0;
+    width: 100%; max-width: 480px;
+    padding: 20px 20px max(20px,env(safe-area-inset-bottom));
+  }
+  @media(min-width:600px){ .post-status-box { border-radius: var(--r); margin: 16px; } }
+  .color-swatch {
+    width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+    border: 2px solid transparent; transition: transform .1s, border-color .1s;
+    flex-shrink: 0;
+  }
+  .color-swatch.selected { border-color: var(--ink); transform: scale(1.15); }
+
 </style>
 {% endblock %}
 
@@ -132,6 +321,102 @@
   }, 5000);  // switch every 5 seconds
 })();
 </script>
+
+<!-- ── Status Bar ─────────────────────────────────────────────────── -->
+<div class="status-bar" id="statusBar">
+  <div class="status-scroll" id="statusScroll">
+    <!-- My add bubble -->
+    <div class="status-bubble" onclick="openPostStatus()">
+      <div class="status-ring-wrap">
+        <div class="status-ring mine">
+          <div class="status-ring-inner status-add-ring">
+            {% if cu.avatar %}<img src="{{ url_for('serve_media', filename=cu.avatar) }}" alt="">
+            {% else %}{{ cu.username[0].upper() }}{% endif %}
+          </div>
+        </div>
+        <div class="status-add-icon">+</div>
+      </div>
+      <span class="status-name">Your status</span>
+    </div>
+    <!-- Dynamic statuses loaded by JS -->
+  </div>
+</div>
+
+<!-- ── Post Status Modal ──────────────────────────────────────────── -->
+<div class="post-status-overlay" id="postStatusOverlay">
+  <div class="post-status-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h3 style="font-size:16px;font-weight:800">Post a Status</h3>
+      <button onclick="closePostStatus()" style="background:none;border:none;cursor:pointer;color:var(--ink3)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="POST" action="{{ url_for('status_post') }}" enctype="multipart/form-data" id="statusForm">
+      <!-- Preview -->
+      <div id="statusPreview" style="width:100%;height:160px;border-radius:12px;background:#2e3192;display:flex;align-items:center;justify-content:center;margin-bottom:14px;overflow:hidden;position:relative">
+        <span id="statusPreviewText" style="color:#fff;font-size:18px;font-weight:700;text-align:center;padding:16px;line-height:1.4;text-shadow:0 2px 6px rgba(0,0,0,.3)">What's on your mind?</span>
+        <img id="statusPreviewImg" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0" src="" alt="">
+        <video id="statusPreviewVid" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0" muted playsinline loop></video>
+      </div>
+      <!-- Text input -->
+      <div class="field" style="margin-bottom:10px">
+        <textarea name="text" id="statusText" placeholder="Type your status…" rows="2" maxlength="200"
+                  style="resize:none;font-size:15px" oninput="updateStatusPreview()"></textarea>
+      </div>
+      <!-- Background colors -->
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Background</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap" id="colorSwatches">
+          {% for c in ['#2e3192','#1a1a2e','#166534','#7b1fa2','#c62828','#e65100','#0369a1','#111827'] %}
+          <div class="color-swatch {% if loop.first %}selected{% endif %}" style="background:{{ c }}"
+               data-color="{{ c }}" onclick="pickColor(this)"></div>
+          {% endfor %}
+        </div>
+        <input type="hidden" name="bg_color" id="bgColorInput" value="#2e3192">
+      </div>
+      <!-- Or upload image -->
+      <div style="margin-bottom:14px">
+        <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--navy)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          Add photo / video
+          <input type="file" name="media" id="statusMedia" accept="image/*,video/*" style="display:none" onchange="previewStatusMedia(this)">
+        </label>
+        <span id="statusMediaName" style="font-size:12px;color:var(--ink3);margin-left:8px"></span>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button type="submit" class="btn btn-primary" style="flex:1">Post Status</button>
+        <button type="button" onclick="closePostStatus()" class="btn btn-outline">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Status Viewer ───────────────────────────────────────────────── -->
+<div class="sv-overlay" id="svOverlay">
+  <div class="sv-stage" id="svStage">
+    <div class="sv-progress-row" id="svProgressRow"></div>
+    <div class="sv-header">
+      <div class="av av-sm" id="svAvatar" style="flex-shrink:0"></div>
+      <span class="sv-author-name" id="svAuthorName"></span>
+      <span class="sv-time" id="svTime"></span>
+      <button class="sv-close" onclick="closeSV()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="sv-content" id="svContent">
+      <div class="sv-bg" id="svBg"></div>
+      <div class="sv-text" id="svText"></div>
+      <div class="sv-prev-zone" onclick="svNav(-1)"></div>
+      <div class="sv-next-zone" onclick="svNav(1)"></div>
+    </div>
+    <div class="sv-footer">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.8)" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      <span class="sv-views" id="svViews">0 views</span>
+      <button class="sv-delete" id="svDeleteBtn" style="display:none" onclick="deleteSV()">Delete</button>
+    </div>
+  </div>
+</div>
+
 
 <!-- Composer -->
 <div class="composer">
@@ -473,4 +758,284 @@ function dlDoc(btn, url, filename) {
   vids.forEach(function(v){ obs.observe(v); });
 })();
 </script>
+<script>
+// ═══════════════════════════════════════════════════════════
+// STATUS SYSTEM
+// ═══════════════════════════════════════════════════════════
+(function(){
+  let allGroups = [];    // [{user_id, username, avatar, statuses:[...], is_mine}]
+  let svGroupIdx  = 0;  // which user's group we're viewing
+  let svStatusIdx = 0;  // which status within that group
+  let svTimer     = null;
+  const DURATION  = 5000; // ms per status
+
+  // ── Load statuses ───────────────────────────────────────
+  async function loadStatuses() {
+    try {
+      const res = await fetch('/api/statuses');
+      allGroups = await res.json();
+      renderStatusBar();
+    } catch(e) { console.warn('Statuses load failed', e); }
+  }
+  loadStatuses();
+
+  function renderStatusBar() {
+    const scroll = document.getElementById('statusScroll');
+    // Remove old dynamic bubbles (keep first "Your status" bubble)
+    while (scroll.children.length > 1) scroll.removeChild(scroll.lastChild);
+
+    // My own statuses first, then others
+    const myGroup = allGroups.find(g => g.is_mine);
+    const others  = allGroups.filter(g => !g.is_mine);
+    const ordered = [...(myGroup ? [myGroup] : []), ...others];
+
+    ordered.forEach((g, i) => {
+      const allViewed = g.all_viewed;
+      const bubble = document.createElement('div');
+      bubble.className = 'status-bubble';
+      bubble.innerHTML = `
+        <div class="status-ring-wrap">
+          <div class="status-ring ${allViewed ? 'viewed' : ''} ${g.is_mine ? 'mine' : ''}">
+            <div class="status-ring-inner">
+              ${g.avatar
+                ? `<img src="${g.avatar}" alt="">`
+                : `<span>${g.username[0].toUpperCase()}</span>`}
+            </div>
+          </div>
+        </div>
+        <span class="status-name">${g.is_mine ? 'My status' : g.username}</span>`;
+      bubble.onclick = () => openSV(allGroups.indexOf(g), 0);
+      scroll.appendChild(bubble);
+    });
+  }
+
+  // ── Post status modal ────────────────────────────────────
+  window.openPostStatus = () => {
+    document.getElementById('postStatusOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  };
+  window.closePostStatus = () => {
+    document.getElementById('postStatusOverlay').classList.remove('open');
+    document.body.style.overflow = '';
+  };
+  document.getElementById('postStatusOverlay')?.addEventListener('click', e => {
+    if (e.target === e.currentTarget) closePostStatus();
+  });
+
+  window.updateStatusPreview = () => {
+    const text  = document.getElementById('statusText').value;
+    const prev  = document.getElementById('statusPreviewText');
+    const color = document.getElementById('bgColorInput').value;
+    prev.textContent = text || "What's on your mind?";
+    document.getElementById('statusPreview').style.background = color;
+  };
+
+  window.pickColor = (el) => {
+    document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+    el.classList.add('selected');
+    const color = el.dataset.color;
+    document.getElementById('bgColorInput').value = color;
+    document.getElementById('statusPreview').style.background = color;
+    const img = document.getElementById('statusPreviewImg');
+    if (img.style.display !== 'none') return; // keep image shown
+    document.getElementById('statusPreview').style.background = color;
+  };
+
+  window.previewStatusMedia = (inp) => {
+    const file = inp.files[0];
+    if (!file) return;
+    document.getElementById('statusMediaName').textContent = file.name;
+    const url = URL.createObjectURL(file);
+    const isVid = file.type.startsWith('video/');
+    const img = document.getElementById('statusPreviewImg');
+    const vid = document.getElementById('statusPreviewVid');
+    document.getElementById('statusPreviewText').style.display = 'none';
+    if (isVid) {
+      img.style.display = 'none';
+      vid.src = url; vid.style.display = 'block'; vid.play().catch(()=>{});
+    } else {
+      vid.style.display = 'none';
+      img.src = url; img.style.display = 'block';
+    }
+  };
+
+  // ── Status Viewer ────────────────────────────────────────
+  window.openSV = (groupIdx, statusIdx) => {
+    svGroupIdx  = groupIdx;
+    svStatusIdx = statusIdx;
+    document.getElementById('svOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    renderSV();
+  };
+
+  window.closeSV = () => {
+    clearSVTimer();
+    document.getElementById('svOverlay').classList.remove('open');
+    document.body.style.overflow = '';
+    loadStatuses(); // refresh rings after viewing
+  };
+
+  window.svNav = (dir) => {
+    clearSVTimer();
+    const group = allGroups[svGroupIdx];
+    const nextIdx = svStatusIdx + dir;
+    if (nextIdx >= 0 && nextIdx < group.statuses.length) {
+      svStatusIdx = nextIdx;
+      renderSV();
+    } else if (dir > 0 && svGroupIdx < allGroups.length - 1) {
+      svGroupIdx++;
+      svStatusIdx = 0;
+      renderSV();
+    } else if (dir < 0 && svGroupIdx > 0) {
+      svGroupIdx--;
+      svStatusIdx = allGroups[svGroupIdx].statuses.length - 1;
+      renderSV();
+    } else {
+      closeSV();
+    }
+  };
+
+  function renderSV() {
+    const group  = allGroups[svGroupIdx];
+    if (!group) { closeSV(); return; }
+    const status = group.statuses[svStatusIdx];
+    if (!status) { closeSV(); return; }
+
+    // Mark viewed
+    if (!status.i_viewed) {
+      fetch(`/status/${status.id}/view`, { method: 'POST' });
+      status.i_viewed = true;
+      // Update ring colour
+      if (group.all_viewed === false) {
+        const allNowViewed = group.statuses.every(s => s.i_viewed);
+        if (allNowViewed) group.all_viewed = true;
+      }
+    }
+
+    // Progress bar
+    buildProgressBars(group.statuses.length, svStatusIdx);
+
+    // Header
+    const av = document.getElementById('svAvatar');
+    av.style.background = 'var(--navy)';
+    av.style.borderRadius = '50%';
+    av.style.overflow = 'hidden';
+    av.style.color = '#fff';
+    av.style.display = 'flex';
+    av.style.alignItems = 'center';
+    av.style.justifyContent = 'center';
+    av.style.fontWeight = '700';
+    av.innerHTML = group.avatar
+      ? `<img src="${group.avatar}" style="width:100%;height:100%;object-fit:cover">`
+      : group.username[0].toUpperCase();
+    document.getElementById('svAuthorName').textContent = group.username;
+    document.getElementById('svTime').textContent = timeAgo(status.created_at);
+
+    // Content
+    const bg   = document.getElementById('svBg');
+    const text = document.getElementById('svText');
+    bg.style.background = status.bg_color || '#2e3192';
+    bg.innerHTML = '';
+    if (status.media_path) {
+      if (status.media_type === 'video') {
+        bg.innerHTML = `<video src="${status.media_path}" style="width:100%;height:100%;object-fit:cover" autoplay muted loop playsinline></video>`;
+      } else {
+        bg.innerHTML = `<img src="${status.media_path}" style="width:100%;height:100%;object-fit:cover">`;
+      }
+    }
+    text.textContent = status.text;
+    text.style.display = status.text ? 'block' : 'none';
+
+    // Footer
+    document.getElementById('svViews').textContent = `${status.view_count} view${status.view_count !== 1 ? 's' : ''}`;
+    const delBtn = document.getElementById('svDeleteBtn');
+    delBtn.style.display = (status.is_mine) ? 'block' : 'none';
+    delBtn.dataset.sid = status.id;
+
+    // Auto-advance
+    startSVTimer();
+  }
+
+  function buildProgressBars(total, current) {
+    const row = document.getElementById('svProgressRow');
+    row.innerHTML = '';
+    for (let i = 0; i < total; i++) {
+      const seg  = document.createElement('div');
+      seg.className = 'sv-prog-seg';
+      const fill = document.createElement('div');
+      fill.className = 'sv-prog-fill';
+      if (i < current) fill.style.width = '100%';
+      seg.appendChild(fill);
+      row.appendChild(seg);
+    }
+  }
+
+  function startSVTimer() {
+    clearSVTimer();
+    const fills = document.querySelectorAll('.sv-prog-fill');
+    const fill  = fills[svStatusIdx];
+    if (!fill) return;
+    fill.style.transition = `width ${DURATION}ms linear`;
+    fill.style.width = '100%';
+    svTimer = setTimeout(() => svNav(1), DURATION);
+  }
+
+  function clearSVTimer() {
+    clearTimeout(svTimer);
+    // Freeze all fills
+    document.querySelectorAll('.sv-prog-fill').forEach(f => {
+      const w = f.offsetWidth / f.parentElement.offsetWidth * 100;
+      f.style.transition = 'none';
+      f.style.width = w + '%';
+    });
+  }
+
+  window.deleteSV = async () => {
+    const sid = document.getElementById('svDeleteBtn').dataset.sid;
+    if (!confirm('Delete this status?')) return;
+    await fetch(`/status/${sid}/delete`, { method: 'POST' });
+    // Remove from local data
+    const group = allGroups[svGroupIdx];
+    group.statuses.splice(svStatusIdx, 1);
+    if (group.statuses.length === 0) {
+      allGroups.splice(svGroupIdx, 1);
+      svGroupIdx = Math.max(0, svGroupIdx - 1);
+      svStatusIdx = 0;
+    } else {
+      svStatusIdx = Math.min(svStatusIdx, group.statuses.length - 1);
+    }
+    if (allGroups.length === 0) { closeSV(); return; }
+    renderSV();
+  };
+
+  // ── Helpers ──────────────────────────────────────────────
+  function timeAgo(dt) {
+    if (!dt) return '';
+    const diff = (Date.now() - new Date(dt).getTime()) / 1000;
+    if (diff < 60)  return 'just now';
+    if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+    return Math.floor(diff/3600) + 'h ago';
+  }
+
+  // Keyboard navigation
+  document.addEventListener('keydown', e => {
+    if (!document.getElementById('svOverlay').classList.contains('open')) return;
+    if (e.key === 'ArrowRight') svNav(1);
+    if (e.key === 'ArrowLeft')  svNav(-1);
+    if (e.key === 'Escape')     closeSV();
+  });
+
+  // Touch swipe on viewer
+  let touchStartX = 0;
+  document.getElementById('svOverlay')?.addEventListener('touchstart', e => {
+    touchStartX = e.touches[0].clientX;
+  }, { passive: true });
+  document.getElementById('svOverlay')?.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 50) svNav(dx < 0 ? 1 : -1);
+  });
+
+})();
+</script>
+
 {% endblock %}

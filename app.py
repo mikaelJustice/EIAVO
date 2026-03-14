@@ -515,6 +515,28 @@ def init_db():
         updated_at  TEXT NOT NULL
     )""")
 
+    # ── Statuses (24hr stories) ───────────────────────────────────────────────
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS statuses (
+        id          SERIAL PRIMARY KEY,
+        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        text        TEXT    NOT NULL DEFAULT '',
+        media_path  TEXT    NOT NULL DEFAULT '',
+        media_type  TEXT    NOT NULL DEFAULT 'text',
+        bg_color    TEXT    NOT NULL DEFAULT '#2e3192',
+        created_at  TEXT    NOT NULL,
+        expires_at  TEXT    NOT NULL
+    )""")
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS status_views (
+        id          SERIAL PRIMARY KEY,
+        status_id   INTEGER NOT NULL REFERENCES statuses(id) ON DELETE CASCADE,
+        viewer_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        viewed_at   TEXT    NOT NULL,
+        UNIQUE(status_id, viewer_id)
+    )""")
+
     migrations = [
         "ALTER TABLE posts          ADD COLUMN IF NOT EXISTS media_name  TEXT DEFAULT ''",
         "ALTER TABLE messages       ADD COLUMN IF NOT EXISTS voice_url   TEXT DEFAULT ''",
@@ -1312,6 +1334,9 @@ def conversation(conv_id):
         msg_type = request.form.get("msg_type", "text")
         voice_url = ""
 
+        video_url  = ""
+        video_name = ""
+
         # Handle voice message upload
         if msg_type == "voice" and "voice_file" in request.files:
             vf = request.files["voice_file"]
@@ -1320,12 +1345,26 @@ def conversation(conv_id):
                 voice_url = vurl
                 content   = content or "🎤 Voice message"
 
-        if content or voice_url:
+        # Handle video/image attachment in regular message
+        if "media_file" in request.files:
+            mf = request.files["media_file"]
+            if mf and mf.filename:
+                vurl, mtype, vname = save_upload(mf)
+                if vurl:
+                    video_url  = vurl
+                    video_name = vname
+                    msg_type   = mtype  # "video" or "image"
+                    content    = content or ("📹 Video" if mtype == "video" else "🖼 Image")
+
+        if content or voice_url or video_url:
             reply_to      = request.form.get("reply_to","").strip()
             reply_preview = request.form.get("reply_preview","").strip()[:80]
             execute(
-                "INSERT INTO messages (id,conversation_id,sender_id,content,is_anon,is_read,voice_url,msg_type,reply_to,reply_preview,created_at) VALUES (?,?,?,?,?,0,?,?,?,?,?)",
-                (_uid(), conv_id, user["id"], content, 1 if is_anon else 0, voice_url, msg_type, reply_to, reply_preview, _now())
+                """INSERT INTO messages (id,conversation_id,sender_id,content,is_anon,is_read,
+                   voice_url,video_url,video_name,msg_type,reply_to,reply_preview,created_at)
+                   VALUES (?,?,?,?,?,0,?,?,?,?,?,?,?)""",
+                (_uid(), conv_id, user["id"], content, 1 if is_anon else 0,
+                 voice_url, video_url, video_name, msg_type, reply_to, reply_preview, _now())
             )
             display = get_anon_name(user["id"]) if is_anon else user["username"]
             push_notif(other_id, f"New message from {display}",
@@ -1336,6 +1375,8 @@ def conversation(conv_id):
         """SELECT m.id, m.conversation_id, m.sender_id, m.content, m.is_anon,
                   m.is_read, m.created_at,
                   COALESCE(m.voice_url, '') as voice_url,
+                  COALESCE(m.video_url, '') as video_url,
+                  COALESCE(m.video_name, '') as video_name,
                   COALESCE(m.msg_type, 'text') as msg_type,
                   COALESCE(m.reply_to, '') as reply_to,
                   COALESCE(m.reply_preview, '') as reply_preview,
@@ -1369,6 +1410,34 @@ def send_voice(conv_id):
             push_notif(other_id, f"Voice message from {user['username']}",
                        url_for("conversation", conv_id=conv_id), "message")
     from flask import jsonify
+    return jsonify({"ok": True})
+
+
+@app.route("/messages/<conv_id>/video", methods=["POST"])
+@login_required
+def send_video_msg(conv_id):
+    user = current_user()
+    conv = query("SELECT * FROM conversations WHERE id=?", (conv_id,), one=True)
+    if not conv or (conv["user_a"] != user["id"] and conv["user_b"] != user["id"]):
+        abort(403)
+    other_id = conv["user_b"] if conv["user_a"] == user["id"] else conv["user_a"]
+    from flask import jsonify
+    vf = request.files.get("video_file")
+    if not vf or not vf.filename:
+        return jsonify({"ok": False, "error": "No file"}), 400
+    vurl, mtype, vname = save_upload(vf)
+    if not vurl:
+        return jsonify({"ok": False, "error": "Upload failed"}), 500
+    caption = request.form.get("caption", "").strip()[:200]
+    content = caption or ("📹 Video" if mtype == "video" else "🖼 Image")
+    execute(
+        """INSERT INTO messages (id,conversation_id,sender_id,content,is_anon,is_read,
+           voice_url,video_url,video_name,msg_type,created_at)
+           VALUES (?,?,?,?,0,0,'',?,?,?,?)""",
+        (_uid(), conv_id, user["id"], content, 0, vurl, vname, mtype, _now())
+    )
+    push_notif(other_id, f"Video from {user['username']}",
+               url_for("conversation", conv_id=conv_id), "message")
     return jsonify({"ok": True})
 
 
@@ -2303,6 +2372,132 @@ def delete_class_reply(rid):
 
 
 # ─── Entrypoint ───────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# STATUSES (24-hr Stories)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _status_expiry():
+    """Return ISO timestamp 24 hours from now."""
+    from datetime import datetime, timedelta
+    return (datetime.utcnow() + timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+
+def _active_statuses_for(viewer_id):
+    """Return all non-expired statuses, grouped by user, with view info."""
+    now = _now()
+    rows = query(
+        """SELECT s.*, u.username, u.avatar, u.anon_name,
+                  (SELECT COUNT(*) FROM status_views WHERE status_id=s.id) as view_count,
+                  (SELECT 1 FROM status_views WHERE status_id=s.id AND viewer_id=?) as i_viewed
+           FROM statuses s JOIN users u ON s.user_id=u.id
+           WHERE s.expires_at > ?
+           ORDER BY s.created_at DESC""",
+        (viewer_id, now)
+    )
+    # Group by user
+    from collections import OrderedDict
+    groups = OrderedDict()
+    for r in rows:
+        uid = r["user_id"]
+        if uid not in groups:
+            groups[uid] = {
+                "user_id": uid,
+                "username": r["username"],
+                "avatar": r["avatar"],
+                "statuses": [],
+                "all_viewed": True,
+            }
+        groups[uid]["statuses"].append(r)
+        if not r["i_viewed"]:
+            groups[uid]["all_viewed"] = False
+    return list(groups.values())
+
+
+@app.route("/status/post", methods=["POST"])
+@login_required
+def status_post():
+    user     = current_user()
+    text     = request.form.get("text", "").strip()[:200]
+    bg_color = request.form.get("bg_color", "#2e3192").strip()
+    media_type = "text"
+    media_path = ""
+
+    file = request.files.get("media")
+    if file and file.filename:
+        saved_path, saved_mtype, _ = save_upload(file)
+        if saved_path:
+            media_path = saved_path
+            media_type = saved_mtype  # "image" or "video"
+    
+    if not text and not media_path:
+        flash("Status cannot be empty.", "error")
+        return redirect(url_for("feed"))
+
+    execute(
+        """INSERT INTO statuses (user_id, text, media_path, media_type, bg_color, created_at, expires_at)
+           VALUES (?,?,?,?,?,?,?)""",
+        (user["id"], text, media_path, media_type, bg_color, _now(), _status_expiry())
+    )
+    return redirect(url_for("feed"))
+
+
+@app.route("/status/<int:sid>/view", methods=["POST"])
+@login_required
+def status_view(sid):
+    user = current_user()
+    try:
+        execute(
+            "INSERT INTO status_views (status_id, viewer_id, viewed_at) VALUES (?,?,?) ON CONFLICT DO NOTHING",
+            (sid, user["id"], _now())
+        )
+    except:
+        pass
+    return ("", 204)
+
+
+@app.route("/status/<int:sid>/delete", methods=["POST"])
+@login_required
+def status_delete(sid):
+    user = current_user()
+    s = query("SELECT * FROM statuses WHERE id=?", (sid,), one=True)
+    if s and (s["user_id"] == user["id"] or user["role"] in ("admin","super_admin")):
+        execute("DELETE FROM statuses WHERE id=?", (sid,))
+    return redirect(url_for("feed"))
+
+
+@app.route("/api/statuses")
+@login_required
+def api_statuses():
+    from flask import jsonify
+    user   = current_user()
+    groups = _active_statuses_for(user["id"])
+    # Serialize
+    out = []
+    for g in groups:
+        sts = []
+        for s in g["statuses"]:
+            sts.append({
+                "id":        s["id"],
+                "text":      s["text"],
+                "media_path": url_for("serve_media", filename=s["media_path"]) if s["media_path"] else "",
+                "media_type": s["media_type"],
+                "bg_color":  s["bg_color"],
+                "created_at": s["created_at"],
+                "expires_at": s["expires_at"],
+                "view_count": s["view_count"],
+                "i_viewed":  bool(s["i_viewed"]),
+                "is_mine":   s["user_id"] == user["id"],
+            })
+        out.append({
+            "user_id":    g["user_id"],
+            "username":   g["username"],
+            "avatar":     url_for("serve_media", filename=g["avatar"]) if g["avatar"] else "",
+            "all_viewed": g["all_viewed"],
+            "statuses":   sts,
+            "is_mine":    g["user_id"] == user["id"],
+        })
+    return jsonify(out)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # YEARBOOK
 # ═══════════════════════════════════════════════════════════════════════════════

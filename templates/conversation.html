@@ -242,6 +242,35 @@
               <span class="vdur">0:00</span>
             </div>
           </div>
+          {% elif m.msg_type == 'video' and m.video_url %}
+          <!-- Video message -->
+          <div class="msg-bubble {{ 'mine' if is_mine else 'theirs' }} media-bubble"
+               data-msg-id="{{ m.id }}"
+               data-msg-sender="{{ 'You' if is_mine else (m.anon_name if m.is_anon and m.anon_name else m.username)|e }}"
+               data-msg-preview="📹 Video"
+               onclick="replyFromBubble(this)" style="padding:4px;overflow:hidden;max-width:260px">
+            <video src="{{ m.video_url }}" controls playsinline preload="metadata"
+                   style="width:100%;border-radius:10px;display:block;max-height:280px;object-fit:cover"></video>
+            {% if m.content and m.content != '📹 Video' %}
+            <div style="padding:6px 10px 4px;font-size:14px">{{ m.content }}</div>
+            {% endif %}
+          </div>
+
+          {% elif m.msg_type == 'image' and m.video_url %}
+          <!-- Image message -->
+          <div class="msg-bubble {{ 'mine' if is_mine else 'theirs' }} media-bubble"
+               data-msg-id="{{ m.id }}"
+               data-msg-sender="{{ 'You' if is_mine else (m.anon_name if m.is_anon and m.anon_name else m.username)|e }}"
+               data-msg-preview="🖼 Image"
+               onclick="replyFromBubble(this)" style="padding:4px;overflow:hidden;max-width:260px">
+            <a href="{{ m.video_url }}" target="_blank">
+              <img src="{{ m.video_url }}" style="width:100%;border-radius:10px;display:block;max-height:280px;object-fit:cover" alt="Image">
+            </a>
+            {% if m.content and m.content != '🖼 Image' %}
+            <div style="padding:6px 10px 4px;font-size:14px">{{ m.content }}</div>
+            {% endif %}
+          </div>
+
           {% else %}
           <!-- Text message -->
           <div class="msg-bubble {{ 'mine' if is_mine else 'theirs' }}"
@@ -298,6 +327,18 @@
     <button onclick="cancelRecording()" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:12px;color:var(--ink3)">Cancel</button>
   </div>
 
+  <!-- Media preview strip -->
+  <div id="mediaPreviewStrip" style="display:none;padding:8px 14px 0;background:var(--white);border-top:1px solid var(--border-l)">
+    <div style="position:relative;display:inline-block">
+      <div id="mediaPreviewThumb" style="width:80px;height:80px;border-radius:8px;overflow:hidden;background:#000">
+        <img id="mediaPreviewImg" style="width:100%;height:100%;object-fit:cover;display:none" src="" alt="">
+        <video id="mediaPreviewVid" style="width:100%;height:100%;object-fit:cover;display:none" muted playsinline></video>
+      </div>
+      <button onclick="clearMediaAttach()" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#333;border:none;color:#fff;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">×</button>
+    </div>
+    <div id="mediaPreviewName" style="font-size:11px;color:var(--ink3);margin-top:4px"></div>
+  </div>
+
   <!-- Input -->
   <div class="chat-foot">
     <form method="POST" class="chat-form" id="chatForm">
@@ -306,10 +347,19 @@
       <input type="hidden" name="is_anon" id="msgAnon" value="">
       <input type="hidden" name="msg_type" value="text">
 
+      <input type="hidden" name="media_file_url" id="mediaFileUrl" value="">
+      <input type="hidden" name="media_file_type" id="mediaFileType" value="">
+
       <button type="button" class="anon-toggle" id="anonBtn" onclick="toggleAnon()">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 10h.01M15 10h.01M12 2a8 8 0 018 8v12l-4-2-4 2-4-2-4 2V10a8 8 0 018-8z"/></svg>
         Anon
       </button>
+
+      <!-- Media attach button -->
+      <label class="icon-btn" style="cursor:pointer;flex-shrink:0" title="Attach photo/video">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        <input type="file" id="mediaAttach" accept="image/*,video/*" style="display:none" onchange="attachMedia(this)">
+      </label>
 
       <input type="text" name="content" id="chatInp" class="chat-inp" placeholder="Message…" autocomplete="off">
 
@@ -514,5 +564,62 @@ document.getElementById('chatInp').addEventListener('keydown', function(e){
 document.getElementById('chatForm').addEventListener('submit', function(){
   setTimeout(()=>{ lastMsgCount=0; }, 500);
 });
+
+// ── Media Attach ────────────────────────────────────────────────────────────
+let _attachedFile = null;
+
+window.attachMedia = function(inp) {
+  const file = inp.files[0];
+  if (!file) return;
+  _attachedFile = file;
+  const isVid = file.type.startsWith('video/');
+  const strip = document.getElementById('mediaPreviewStrip');
+  const img   = document.getElementById('mediaPreviewImg');
+  const vid   = document.getElementById('mediaPreviewVid');
+  document.getElementById('mediaPreviewName').textContent = file.name;
+  const url = URL.createObjectURL(file);
+  if (isVid) {
+    img.style.display = 'none';
+    vid.src = url; vid.style.display = 'block';
+  } else {
+    vid.style.display = 'none';
+    img.src = url; img.style.display = 'block';
+  }
+  strip.style.display = 'block';
+  document.getElementById('chatInp').placeholder = 'Add a caption (optional)…';
+};
+
+window.clearMediaAttach = function() {
+  _attachedFile = null;
+  document.getElementById('mediaPreviewStrip').style.display = 'none';
+  document.getElementById('mediaAttach').value = '';
+  document.getElementById('chatInp').placeholder = 'Message…';
+};
+
+// Override form submit to handle media upload
+document.getElementById('chatForm').addEventListener('submit', async function(e) {
+  if (!_attachedFile) return; // let form submit normally
+  e.preventDefault();
+  const caption = document.getElementById('chatInp').value.trim();
+  const fd = new FormData();
+  fd.append('video_file', _attachedFile);
+  if (caption) fd.append('caption', caption);
+  const sendBtn = this.querySelector('.send-btn');
+  sendBtn.disabled = true;
+  try {
+    const res = await fetch(`/messages/${CONV_ID}/video`, { method:'POST', body: fd });
+    const d   = await res.json();
+    if (d.ok) {
+      clearMediaAttach();
+      document.getElementById('chatInp').value = '';
+      location.reload();
+    }
+  } catch(err) {
+    console.error(err);
+  } finally {
+    sendBtn.disabled = false;
+  }
+});
+
 </script>
 {% endblock %}
