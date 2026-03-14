@@ -313,6 +313,45 @@
     cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0;
   }
 
+  /* Download button */
+  .reel-action-btn.downloading .reel-action-icon {
+    background: rgba(100,200,100,.25);
+  }
+  .reel-action-btn.downloading svg { stroke: #6be080; }
+
+  /* Long-press ripple */
+  .lp-ripple {
+    position: absolute;
+    inset: 0;
+    border-radius: 16px;
+    background: rgba(255,255,255,.06);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .2s;
+    z-index: 1;
+  }
+  .lp-ripple.active { opacity: 1; }
+
+  /* Download toast */
+  .dl-toast {
+    position: fixed;
+    bottom: calc(80px + env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(30,30,30,.95);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 24px;
+    font-size: 13px;
+    font-weight: 600;
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity .25s, transform .25s;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .dl-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
   /* Mobile adjustments */
   @media(max-width:600px) {
     .reel-card { width: min(300px, 80vw); height: min(530px, 78vh); }
@@ -346,6 +385,9 @@
 
       <!-- Tap to play/pause -->
       <div class="reel-tap-overlay"></div>
+
+      <!-- Long-press ripple -->
+      <div class="lp-ripple"></div>
 
       <!-- Play/pause indicator -->
       <div class="play-indicator">
@@ -449,6 +491,21 @@
         <span class="reel-action-label">Share</span>
       </button>
 
+      <!-- Download -->
+      <button class="reel-action-btn" onclick="downloadReel(this, '{{ reel.id }}')"
+              data-video-src="{{ url_for('serve_media', filename=reel.media_path) }}"
+              data-filename="reel-{{ reel.id }}.mp4"
+              title="Download">
+        <div class="reel-action-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </div>
+        <span class="reel-action-label">Save</span>
+      </button>
+
       <!-- More menu -->
       <div class="post-menu" style="position:relative">
         <button class="reel-action-btn" onclick="toggleReelMenu(this)">
@@ -482,6 +539,9 @@
   </div><!-- /reel-item -->
   {% endfor %}
 </div>
+
+<!-- Download toast -->
+<div class="dl-toast" id="dlToast"></div>
 
 <!-- Comments Drawer -->
 <div class="reel-comments-overlay" id="commentsOverlay">
@@ -661,6 +721,139 @@
   };
   window.closeReelMenus = () => document.querySelectorAll('.reel-dropdown.open').forEach(d => d.classList.remove('open'));
   document.addEventListener('click', e => { if (!e.target.closest('.post-menu')) closeReelMenus(); });
+
+  // ── Download ──────────────────────────────────────────────────────────────
+  function showToast(msg, dur=2200) {
+    const t = document.getElementById('dlToast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._t);
+    t._t = setTimeout(() => t.classList.remove('show'), dur);
+  }
+
+  window.downloadReel = async function(btn, pid) {
+    const src  = btn.dataset.videoSrc;
+    const name = btn.dataset.filename || `reel-${pid}.mp4`;
+    if (!src) { showToast('No video to download'); return; }
+
+    btn.classList.add('downloading');
+    const lbl = btn.querySelector('.reel-action-label');
+    const origLbl = lbl.textContent;
+    lbl.textContent = '…';
+    showToast('Downloading…', 8000);
+
+    try {
+      const res  = await fetch(src);
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Saved to downloads!');
+    } catch(e) {
+      // Fallback: open in new tab so browser save dialog appears
+      const a = document.createElement('a');
+      a.href = btn.dataset.videoSrc;
+      a.download = name;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast('Opening video — use Save As to download');
+    } finally {
+      btn.classList.remove('downloading');
+      lbl.textContent = origLbl;
+    }
+  };
+
+  // ── Long-press on mobile (500ms hold = show download option) ──────────────
+  document.querySelectorAll('.reel-card').forEach(card => {
+    let lpTimer = null;
+    let lpFired = false;
+
+    const startLP = (e) => {
+      // Don't trigger on taps of buttons/links
+      if (e.target.closest('button,a,.reel-volume-btn,.reel-action-btn')) return;
+      lpFired = false;
+      const ripple = card.querySelector('.lp-ripple');
+      lpTimer = setTimeout(() => {
+        lpFired = true;
+        ripple.classList.add('active');
+        const item  = card.closest('.reel-item');
+        const dlBtn = item.querySelector('[data-video-src]');
+        if (dlBtn) {
+          // vibrate if supported
+          if (navigator.vibrate) navigator.vibrate(40);
+          showDownloadSheet(dlBtn);
+        }
+        setTimeout(() => ripple.classList.remove('active'), 400);
+      }, 500);
+    };
+
+    const cancelLP = () => {
+      clearTimeout(lpTimer);
+      card.querySelector('.lp-ripple')?.classList.remove('active');
+    };
+
+    card.addEventListener('touchstart', startLP, { passive: true });
+    card.addEventListener('touchend',   cancelLP);
+    card.addEventListener('touchmove',  cancelLP, { passive: true });
+
+    // Right-click / ctrl-click on desktop
+    card.addEventListener('contextmenu', e => {
+      const item  = card.closest('.reel-item');
+      const dlBtn = item.querySelector('[data-video-src]');
+      if (dlBtn) {
+        e.preventDefault();
+        showDownloadSheet(dlBtn);
+      }
+    });
+  });
+
+  // ── Download bottom sheet (mobile long-press + desktop right-click) ───────
+  let _dlSheetBtn = null;
+
+  function showDownloadSheet(dlBtn) {
+    _dlSheetBtn = dlBtn;
+    let sheet = document.getElementById('dlSheet');
+    if (!sheet) {
+      sheet = document.createElement('div');
+      sheet.id = 'dlSheet';
+      sheet.style.cssText = [
+        'position:fixed','inset:0','z-index:600',
+        'display:flex','align-items:flex-end','justify-content:center',
+        'background:rgba(0,0,0,.5)',
+      ].join(';');
+      sheet.innerHTML = `
+        <div style="width:100%;max-width:480px;background:#1c1c1e;border-radius:18px 18px 0 0;padding:12px 0 max(20px,env(safe-area-inset-bottom))">
+          <div style="width:36px;height:4px;background:#444;border-radius:4px;margin:0 auto 16px"></div>
+          <div style="padding:0 16px 4px;font-size:12px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.08em">Video</div>
+          <button id="dlSheetDownload" style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 20px;background:none;border:none;color:#fff;font-size:16px;font-family:inherit;cursor:pointer;text-align:left">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download video
+          </button>
+          <button id="dlSheetCancel" style="display:flex;align-items:center;justify-content:center;width:100%;padding:14px 20px;background:none;border:none;color:#888;font-size:15px;font-family:inherit;cursor:pointer;border-top:1px solid #2c2c2e">
+            Cancel
+          </button>
+        </div>`;
+      document.body.appendChild(sheet);
+      document.getElementById('dlSheetDownload').onclick = () => {
+        closeDownloadSheet();
+        if (_dlSheetBtn) downloadReel(_dlSheetBtn, _dlSheetBtn.dataset.filename?.replace('reel-','').replace('.mp4',''));
+      };
+      document.getElementById('dlSheetCancel').onclick = closeDownloadSheet;
+      sheet.addEventListener('click', e => { if (e.target === sheet) closeDownloadSheet(); });
+    }
+    sheet.style.display = 'flex';
+  }
+
+  function closeDownloadSheet() {
+    const s = document.getElementById('dlSheet');
+    if (s) s.style.display = 'none';
+  }
 
   // ── Comments drawer ───────────────────────────────────────────────────────
   window.openComments = async function(postId) {
