@@ -59,193 +59,231 @@
 .doc-link svg { flex-shrink: 0; }
 
   /* ── Status bar ─────────────────────────────────── */
+  /* ═══════════════════════════════════════════
+     STATUS BAR  (Instagram / WhatsApp style)
+  ═══════════════════════════════════════════ */
+
   .status-bar {
     background: var(--white);
     border: 1px solid var(--border);
     border-radius: var(--r);
     margin-bottom: 14px;
-    padding: 14px 12px;
+    padding: 12px 14px;
     overflow: hidden;
   }
   .status-scroll {
     display: flex;
-    gap: 14px;
+    gap: 18px;
     overflow-x: auto;
-    scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
-    padding-bottom: 2px;
+    padding-bottom: 4px;
   }
   .status-scroll::-webkit-scrollbar { display: none; }
+
+  /* Each person bubble */
   .status-bubble {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
     cursor: pointer;
     flex-shrink: 0;
-    min-width: 62px;
+    width: 68px;
+    -webkit-tap-highlight-color: transparent;
   }
+  .status-bubble:active { opacity: .7; }
+
+  /* The gradient ring wrapper */
+  .status-ring-wrap { position: relative; }
+
   .status-ring {
-    width: 56px;
-    height: 56px;
+    width: 64px;
+    height: 64px;
     border-radius: 50%;
-    padding: 2.5px;
-    background: conic-gradient(var(--navy) 0%, var(--lime) 100%);
+    padding: 3px;
+    /* Instagram-style orange→pink→purple gradient */
+    background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
     flex-shrink: 0;
   }
+  /* Viewed = grey ring */
   .status-ring.viewed {
-    background: #ccc;
+    background: #c8c8c8;
   }
+  /* My own status = navy→lime school colours */
   .status-ring.mine {
-    background: conic-gradient(var(--navy), #3d42b8, var(--lime));
+    background: linear-gradient(135deg, var(--navy) 0%, var(--lime) 100%);
   }
-  .status-ring-inner {
+  /* The white gap between ring and avatar */
+  .status-ring-gap {
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    border: 2.5px solid var(--white);
+    background: var(--white);
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* Avatar circle */
+  .status-av {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
     overflow: hidden;
     background: var(--navy);
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 800;
-    font-size: 18px;
+    font-size: 20px;
     color: #fff;
   }
-  .status-ring-inner img {
-    width: 100%; height: 100%; object-fit: cover;
-  }
-  .status-add-ring {
-    background: var(--blue-l);
-  }
-  .status-add-icon {
-    width: 20px; height: 20px;
+  .status-av img { width: 100%; height: 100%; object-fit: cover; }
+
+  /* The + badge on your own bubble */
+  .status-add-badge {
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 22px; height: 22px;
     border-radius: 50%;
     background: var(--navy);
     color: #fff;
     display: flex; align-items: center; justify-content: center;
-    font-size: 16px; font-weight: 700;
+    font-size: 15px; font-weight: 700; line-height: 1;
     border: 2px solid var(--white);
-    position: absolute;
-    bottom: 0; right: 0;
   }
-  .status-ring-wrap {
-    position: relative;
-  }
+
   .status-name {
     font-size: 11px;
     font-weight: 600;
     color: var(--ink2);
-    max-width: 62px;
+    width: 68px;
+    text-align: center;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    text-align: center;
   }
 
-  /* ── Status Viewer Modal ─────────────────────────── */
+  /* ── Status Viewer (full-screen, tap left/right to navigate) ── */
   .sv-overlay {
     position: fixed; inset: 0; z-index: 800;
     background: #000;
     display: none; align-items: center; justify-content: center;
   }
   .sv-overlay.open { display: flex; }
+
   .sv-stage {
-    width: 100%; max-width: 420px; height: 100%;
-    max-height: 100svh;
+    width: 100%; max-width: 420px;
+    height: 100%; max-height: 100svh;
     position: relative;
     display: flex; flex-direction: column;
   }
-  /* Progress strips */
+
+  /* Progress strips across top */
   .sv-progress-row {
+    position: absolute; top: 0; left: 0; right: 0;
     display: flex; gap: 3px;
-    padding: 10px 12px 6px;
-    position: absolute; top: 0; left: 0; right: 0; z-index: 5;
-  }
-  .sv-prog-seg {
-    flex: 1; height: 3px; border-radius: 2px;
-    background: rgba(255,255,255,.3); overflow: hidden;
-  }
-  .sv-prog-fill {
-    height: 100%; width: 0%; background: #fff;
-    transition: width linear;
-  }
-  /* Header */
-  .sv-header {
-    position: absolute; top: 28px; left: 0; right: 0;
-    display: flex; align-items: center; gap: 10px;
-    padding: 8px 14px; z-index: 5;
-  }
-  .sv-author-name { color: #fff; font-weight: 700; font-size: 14px; flex: 1; }
-  .sv-time { color: rgba(255,255,255,.65); font-size: 12px; }
-  .sv-close {
-    width: 32px; height: 32px; border-radius: 50%;
-    background: rgba(0,0,0,.4); border: none; color: #fff;
-    cursor: pointer; display: flex; align-items: center; justify-content: center;
-  }
-  /* Content area */
-  .sv-content {
-    width: 100%; height: 100%;
-    display: flex; align-items: center; justify-content: center;
-    position: relative;
-  }
-  .sv-bg {
-    position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .sv-text {
-    position: relative; z-index: 2;
-    color: #fff; font-size: 22px; font-weight: 700;
-    text-align: center; padding: 32px 28px;
-    line-height: 1.45; text-shadow: 0 2px 8px rgba(0,0,0,.4);
-    max-width: 340px;
-  }
-  .sv-img { width: 100%; height: 100%; object-fit: contain; }
-  /* Nav zones */
-  .sv-prev-zone, .sv-next-zone {
-    position: absolute; top: 0; bottom: 0; width: 40%;
-    z-index: 10; cursor: pointer;
-  }
-  .sv-prev-zone { left: 0; }
-  .sv-next-zone { right: 0; }
-  /* Views + delete bar */
-  .sv-footer {
-    position: absolute; bottom: 0; left: 0; right: 0;
-    display: flex; align-items: center; gap: 10px;
-    padding: 12px 16px max(16px,env(safe-area-inset-bottom));
-    background: linear-gradient(to top, rgba(0,0,0,.7) 0%, transparent 100%);
+    padding: max(10px,env(safe-area-inset-top)) 10px 6px;
     z-index: 5;
   }
-  .sv-views { color: rgba(255,255,255,.8); font-size: 13px; display: flex; align-items: center; gap: 5px; }
-  .sv-delete {
-    margin-left: auto; background: rgba(237,73,86,.3); border: 1px solid rgba(237,73,86,.5);
-    color: #fff; border-radius: 20px; padding: 5px 14px; font-size: 12px;
-    font-weight: 700; cursor: pointer;
+  .sv-prog-seg {
+    flex: 1; height: 2.5px;
+    border-radius: 2px;
+    background: rgba(255,255,255,.35);
+    overflow: hidden;
+  }
+  .sv-prog-fill {
+    height: 100%; width: 0%;
+    background: #fff;
   }
 
-  /* ── Post status form (modal) ───────────────────── */
+  /* Header row */
+  .sv-header {
+    position: absolute;
+    top: max(30px, calc(env(safe-area-inset-top) + 20px));
+    left: 0; right: 0;
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px;
+    z-index: 5;
+  }
+  .sv-av {
+    width: 36px; height: 36px; border-radius: 50%;
+    overflow: hidden; border: 2px solid rgba(255,255,255,.6);
+    background: var(--navy); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 14px; color: #fff;
+  }
+  .sv-av img { width:100%;height:100%;object-fit:cover; }
+  .sv-author-name { color:#fff;font-weight:700;font-size:14px;flex:1;text-shadow:0 1px 4px rgba(0,0,0,.5); }
+  .sv-time { color:rgba(255,255,255,.6);font-size:12px; }
+  .sv-close {
+    width:32px;height:32px;border-radius:50%;
+    background:rgba(0,0,0,.35);border:none;color:#fff;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+
+  /* Main content */
+  .sv-content {
+    width:100%;height:100%;
+    position:relative;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .sv-bg {
+    position:absolute;inset:0;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .sv-text {
+    position:relative;z-index:2;
+    color:#fff;font-size:24px;font-weight:700;
+    text-align:center;padding:80px 28px 80px;
+    line-height:1.5;text-shadow:0 2px 12px rgba(0,0,0,.5);
+    max-width:380px;word-break:break-word;
+  }
+
+  /* Tap zones */
+  .sv-prev-zone,.sv-next-zone {
+    position:absolute;top:0;bottom:0;width:40%;z-index:10;cursor:pointer;
+  }
+  .sv-prev-zone{left:0;} .sv-next-zone{right:0;}
+
+  /* Footer */
+  .sv-footer {
+    position:absolute;bottom:0;left:0;right:0;
+    display:flex;align-items:center;gap:10px;
+    padding:16px 16px max(20px,env(safe-area-inset-bottom));
+    background:linear-gradient(to top,rgba(0,0,0,.65) 0%,transparent 100%);
+    z-index:5;
+  }
+  .sv-views{color:rgba(255,255,255,.85);font-size:13px;display:flex;align-items:center;gap:5px;}
+  .sv-delete{
+    margin-left:auto;background:rgba(237,73,86,.3);
+    border:1px solid rgba(237,73,86,.6);
+    color:#fff;border-radius:20px;padding:6px 16px;
+    font-size:12px;font-weight:700;cursor:pointer;
+  }
+
+  /* ── Post-status modal ── */
   .post-status-overlay {
-    position: fixed; inset: 0; z-index: 700;
-    background: rgba(0,0,0,.5);
-    display: none; align-items: flex-end; justify-content: center;
+    position:fixed;inset:0;z-index:700;
+    background:rgba(0,0,0,.55);
+    display:none;align-items:flex-end;justify-content:center;
   }
-  .post-status-overlay.open { display: flex; }
-  @media(min-width:600px){ .post-status-overlay { align-items: center; } }
+  .post-status-overlay.open{display:flex;}
+  @media(min-width:600px){.post-status-overlay{align-items:center;}}
   .post-status-box {
-    background: var(--white);
-    border-radius: 18px 18px 0 0;
-    width: 100%; max-width: 480px;
-    padding: 20px 20px max(20px,env(safe-area-inset-bottom));
+    background:var(--white);
+    border-radius:18px 18px 0 0;
+    width:100%;max-width:480px;
+    padding:20px 20px max(20px,env(safe-area-inset-bottom));
+    max-height:92vh;overflow-y:auto;
   }
-  @media(min-width:600px){ .post-status-box { border-radius: var(--r); margin: 16px; } }
+  @media(min-width:600px){.post-status-box{border-radius:var(--r);margin:16px;}}
   .color-swatch {
-    width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
-    border: 2px solid transparent; transition: transform .1s, border-color .1s;
-    flex-shrink: 0;
+    width:28px;height:28px;border-radius:50%;cursor:pointer;
+    border:2px solid transparent;transition:transform .1s,border-color .1s;flex-shrink:0;
   }
-  .color-swatch.selected { border-color: var(--ink); transform: scale(1.15); }
+  .color-swatch.selected{border-color:var(--ink);transform:scale(1.2);}
 
 </style>
 {% endblock %}
@@ -329,16 +367,18 @@
     <div class="status-bubble" onclick="openPostStatus()">
       <div class="status-ring-wrap">
         <div class="status-ring mine">
-          <div class="status-ring-inner status-add-ring">
-            {% if cu.avatar %}<img src="{{ url_for('serve_media', filename=cu.avatar) }}" alt="">
-            {% else %}{{ cu.username[0].upper() }}{% endif %}
+          <div class="status-ring-gap">
+            <div class="status-av">
+              {% if cu.avatar %}<img src="{{ url_for('serve_media', filename=cu.avatar) }}" alt="">
+              {% else %}{{ cu.username[0].upper() }}{% endif %}
+            </div>
           </div>
         </div>
-        <div class="status-add-icon">+</div>
+        <div class="status-add-badge">+</div>
       </div>
       <span class="status-name">Your status</span>
     </div>
-    <!-- Dynamic statuses loaded by JS -->
+    <!-- Others loaded by JS -->
   </div>
 </div>
 
@@ -396,7 +436,7 @@
   <div class="sv-stage" id="svStage">
     <div class="sv-progress-row" id="svProgressRow"></div>
     <div class="sv-header">
-      <div class="av av-sm" id="svAvatar" style="flex-shrink:0"></div>
+      <div class="sv-av" id="svAvatar"></div>
       <span class="sv-author-name" id="svAuthorName"></span>
       <span class="sv-time" id="svTime"></span>
       <button class="sv-close" onclick="closeSV()">
@@ -791,15 +831,18 @@ function dlDoc(btn, url, filename) {
 
     ordered.forEach((g, i) => {
       const allViewed = g.all_viewed;
+      const ringClass = allViewed ? 'viewed' : (g.is_mine ? 'mine' : '');
       const bubble = document.createElement('div');
       bubble.className = 'status-bubble';
       bubble.innerHTML = `
         <div class="status-ring-wrap">
-          <div class="status-ring ${allViewed ? 'viewed' : ''} ${g.is_mine ? 'mine' : ''}">
-            <div class="status-ring-inner">
-              ${g.avatar
-                ? `<img src="${g.avatar}" alt="">`
-                : `<span>${g.username[0].toUpperCase()}</span>`}
+          <div class="status-ring ${ringClass}">
+            <div class="status-ring-gap">
+              <div class="status-av">
+                ${g.avatar
+                  ? `<img src="${g.avatar}" alt="">`
+                  : `<span>${g.username[0].toUpperCase()}</span>`}
+              </div>
             </div>
           </div>
         </div>
@@ -917,16 +960,8 @@ function dlDoc(btn, url, filename) {
 
     // Header
     const av = document.getElementById('svAvatar');
-    av.style.background = 'var(--navy)';
-    av.style.borderRadius = '50%';
-    av.style.overflow = 'hidden';
-    av.style.color = '#fff';
-    av.style.display = 'flex';
-    av.style.alignItems = 'center';
-    av.style.justifyContent = 'center';
-    av.style.fontWeight = '700';
     av.innerHTML = group.avatar
-      ? `<img src="${group.avatar}" style="width:100%;height:100%;object-fit:cover">`
+      ? `<img src="${group.avatar}" alt="">`
       : group.username[0].toUpperCase();
     document.getElementById('svAuthorName').textContent = group.username;
     document.getElementById('svTime').textContent = timeAgo(status.created_at);

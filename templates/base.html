@@ -325,6 +325,38 @@
   .anon-box .anon-lbl{font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.07em}
   .anon-box .anon-val{font-size:22px;font-weight:700;color:var(--navy);margin-top:3px;font-family:var(--font-h)}
 
+  /* Incoming call banner */
+  .inc-call-banner {
+    position: fixed; top: max(12px,env(safe-area-inset-top)); left: 50%;
+    transform: translateX(-50%) translateY(-120px);
+    background: #1c1c1e; color: #fff;
+    border-radius: 18px; padding: 14px 16px;
+    display: flex; align-items: center; gap: 14px;
+    min-width: 300px; max-width: 380px; width: 90%;
+    box-shadow: 0 8px 32px rgba(0,0,0,.4);
+    z-index: 9999;
+    transition: transform .35s cubic-bezier(.22,1,.36,1);
+  }
+  .inc-call-banner.show { transform: translateX(-50%) translateY(0); }
+  .inc-call-av {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--navy); display: flex; align-items: center;
+    justify-content: center; font-size: 18px; font-weight: 800;
+    flex-shrink: 0; overflow: hidden;
+  }
+  .inc-call-av img { width:100%;height:100%;object-fit:cover; }
+  .inc-call-info { flex: 1; min-width: 0; }
+  .inc-call-name { font-size: 14px; font-weight: 700; }
+  .inc-call-label { font-size: 12px; color: rgba(255,255,255,.6); margin-top: 2px; }
+  .inc-call-btns { display: flex; gap: 8px; }
+  .inc-call-btn {
+    width: 40px; height: 40px; border-radius: 50%;
+    border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .inc-call-btn.dec { background: #ed4956; }
+  .inc-call-btn.ans { background: #25d366; }
+
 
   /* ═════════════════════════════════════
      RESPONSIVE LAYOUT
@@ -774,6 +806,82 @@ function pollNotifs(){
 if(!window.location.pathname.includes('/messages/')) {
   setInterval(pollNotifs, 15000);
 }
+</script>
+
+<!-- ── Incoming call banner (shown on all pages) ── -->
+<div class="inc-call-banner" id="incCallBanner">
+  <div class="inc-call-av" id="incCallAv"></div>
+  <div class="inc-call-info">
+    <div class="inc-call-name" id="incCallName"></div>
+    <div class="inc-call-label" id="incCallLabel"></div>
+  </div>
+  <div class="inc-call-btns">
+    <button class="inc-call-btn dec" id="incCallDec" title="Decline">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <button class="inc-call-btn ans" id="incCallAns" title="Answer">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 8.63 19.79 19.79 0 01.02 5.18 2 2 0 012 3h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.1 10.69a16 16 0 006.22 6.22l1.05-1.06a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 17z"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+(function(){
+  let _activeCallId = null;
+  let _ringing = false;
+
+  async function checkIncoming() {
+    try {
+      const res  = await fetch('/api/incoming-call');
+      const data = await res.json();
+      if (data && data.call_id && data.call_id !== _activeCallId) {
+        _activeCallId = data.call_id;
+        showBanner(data);
+      } else if (!data && _ringing) {
+        hideBanner();
+      }
+    } catch(e){}
+  }
+
+  function showBanner(d) {
+    _ringing = true;
+    const banner  = document.getElementById('incCallBanner');
+    const av      = document.getElementById('incCallAv');
+    const name    = document.getElementById('incCallName');
+    const label   = document.getElementById('incCallLabel');
+    av.innerHTML  = d.caller_avatar
+      ? `<img src="${d.caller_avatar}" alt="">`
+      : d.caller_name[0].toUpperCase();
+    name.textContent  = d.caller_name;
+    label.textContent = `Incoming ${d.call_type} call · EIA Voice`;
+
+    document.getElementById('incCallDec').onclick = async () => {
+      await fetch(`/call/${d.call_id}/decline`, { method: 'POST' });
+      hideBanner();
+    };
+    document.getElementById('incCallAns').onclick = () => {
+      hideBanner();
+      const isMobile = window.innerWidth < 820;
+      if (isMobile) { window.location.href = `/call/${d.call_id}`; }
+      else { window.open(`/call/${d.call_id}`, 'call', 'width=480,height=780,resizable=yes'); }
+    };
+
+    banner.classList.add('show');
+    // Auto-dismiss after 30s if not answered
+    setTimeout(() => { if (_ringing) hideBanner(); }, 30000);
+  }
+
+  function hideBanner() {
+    _ringing = false;
+    _activeCallId = null;
+    document.getElementById('incCallBanner').classList.remove('show');
+  }
+
+  // Don't poll on the call page itself
+  if (!window.location.pathname.startsWith('/call/')) {
+    setInterval(checkIncoming, 3000);
+  }
+})();
 </script>
 </body>
 </html>

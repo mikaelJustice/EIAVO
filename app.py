@@ -515,6 +515,29 @@ def init_db():
         updated_at  TEXT NOT NULL
     )""")
 
+    # ── Calls ────────────────────────────────────────────────────────────────
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS calls (
+        id          TEXT PRIMARY KEY,
+        caller_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        callee_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        call_type   TEXT NOT NULL DEFAULT 'video',
+        status      TEXT NOT NULL DEFAULT 'ringing',
+        offer       TEXT NOT NULL DEFAULT '',
+        answer      TEXT NOT NULL DEFAULT '',
+        created_at  TEXT NOT NULL,
+        updated_at  TEXT NOT NULL
+    )""")
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS call_candidates (
+        id          SERIAL PRIMARY KEY,
+        call_id     TEXT NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
+        user_id     INTEGER NOT NULL,
+        candidate   TEXT NOT NULL,
+        created_at  TEXT NOT NULL
+    )""")
+
     # ── Statuses (24hr stories) ───────────────────────────────────────────────
     cur.execute("""
     CREATE TABLE IF NOT EXISTS statuses (
@@ -1370,6 +1393,19 @@ def conversation(conv_id):
             push_notif(other_id, f"New message from {display}",
                        url_for("conversation", conv_id=conv_id), "message")
         return redirect(url_for("conversation", conv_id=conv_id))
+
+    # Ensure new columns exist before querying them
+    for col_sql in [
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS video_url  TEXT DEFAULT ''",
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS video_name TEXT DEFAULT ''",
+    ]:
+        try:
+            from flask import g as _g
+            cur = _g.db.cursor()
+            cur.execute(col_sql)
+            _g.db.commit()
+        except Exception:
+            pass
 
     msgs = query(
         """SELECT m.id, m.conversation_id, m.sender_id, m.content, m.is_anon,
@@ -2372,6 +2408,132 @@ def delete_class_reply(rid):
 
 
 # ─── Entrypoint ───────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# CALLS (WebRTC P2P — signalling via DB polling)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/call/initiate", methods=["POST"])
+@login_required
+def call_initiate():
+    from flask import jsonify
+    user      = current_user()
+    callee_id = int(request.json.get("callee_id"))
+    call_type = request.json.get("call_type", "video")   # "video" | "audio"
+    offer     = request.json.get("offer", "")
+
+    # End any existing ringing call from this user
+    execute("UPDATE calls SET status='ended' WHERE caller_id=? AND status='ringing'", (user["id"],))
+
+    cid = _uid()
+    execute(
+        "INSERT INTO calls (id,caller_id,callee_id,call_type,status,offer,answer,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        (cid, user["id"], callee_id, call_type, "ringing", offer, "", _now(), _now())
+    )
+    push_notif(callee_id, f"Incoming {call_type} call from {user['username']}",
+               url_for("call_page", call_id=cid), "call")
+    return jsonify({"call_id": cid})
+
+
+@app.route("/call/<call_id>/answer", methods=["POST"])
+@login_required
+def call_answer(call_id):
+    from flask import jsonify
+    user   = current_user()
+    answer = request.json.get("answer", "")
+    execute("UPDATE calls SET status='active', answer=?, updated_at=? WHERE id=? AND callee_id=?",
+            (answer, _now(), call_id, user["id"]))
+    return jsonify({"ok": True})
+
+
+@app.route("/call/<call_id>/candidate", methods=["POST"])
+@login_required
+def call_candidate(call_id):
+    from flask import jsonify
+    user      = current_user()
+    candidate = request.json.get("candidate", "")
+    execute("INSERT INTO call_candidates (call_id, user_id, candidate, created_at) VALUES (?,?,?,?)",
+            (call_id, user["id"], candidate, _now()))
+    execute("UPDATE calls SET updated_at=? WHERE id=?", (_now(), call_id))
+    return jsonify({"ok": True})
+
+
+@app.route("/call/<call_id>/status")
+@login_required
+def call_status(call_id):
+    from flask import jsonify
+    user = current_user()
+    call = query("SELECT * FROM calls WHERE id=?", (call_id,), one=True)
+    if not call:
+        return jsonify({"status": "not_found"})
+    # Fetch candidates from the OTHER person
+    other_id = call["callee_id"] if call["caller_id"] == user["id"] else call["caller_id"]
+    since_id  = request.args.get("since", 0, type=int)
+    candidates = query(
+        "SELECT id, candidate FROM call_candidates WHERE call_id=? AND user_id=? AND id>? ORDER BY id ASC",
+        (call_id, other_id, since_id)
+    )
+    return jsonify({
+        "status":     call["status"],
+        "call_type":  call["call_type"],
+        "offer":      call["offer"],
+        "answer":     call["answer"],
+        "caller_id":  call["caller_id"],
+        "callee_id":  call["callee_id"],
+        "candidates": [{"id": c["id"], "candidate": c["candidate"]} for c in candidates],
+    })
+
+
+@app.route("/call/<call_id>/end", methods=["POST"])
+@login_required
+def call_end(call_id):
+    from flask import jsonify
+    execute("UPDATE calls SET status='ended', updated_at=? WHERE id=?", (_now(), call_id))
+    return jsonify({"ok": True})
+
+
+@app.route("/call/<call_id>/decline", methods=["POST"])
+@login_required
+def call_decline(call_id):
+    from flask import jsonify
+    execute("UPDATE calls SET status='declined', updated_at=? WHERE id=?", (_now(), call_id))
+    return jsonify({"ok": True})
+
+
+@app.route("/call/<call_id>")
+@login_required
+def call_page(call_id):
+    user = current_user()
+    call = query("SELECT * FROM calls WHERE id=?", (call_id,), one=True)
+    if not call:
+        abort(404)
+    if call["caller_id"] != user["id"] and call["callee_id"] != user["id"]:
+        abort(403)
+    other_id = call["callee_id"] if call["caller_id"] == user["id"] else call["caller_id"]
+    other    = query("SELECT id, username, avatar FROM users WHERE id=?", (other_id,), one=True)
+    is_caller = call["caller_id"] == user["id"]
+    return render_template("call.html", call=call, other=other, is_caller=is_caller)
+
+
+@app.route("/api/incoming-call")
+@login_required
+def api_incoming_call():
+    """Polled every 3s to check for incoming calls."""
+    from flask import jsonify
+    user = current_user()
+    call = query(
+        "SELECT c.*, u.username as caller_name, u.avatar as caller_avatar FROM calls c JOIN users u ON c.caller_id=u.id WHERE c.callee_id=? AND c.status='ringing' ORDER BY c.created_at DESC LIMIT 1",
+        (user["id"],), one=True
+    )
+    if call:
+        return jsonify({
+            "call_id":     call["id"],
+            "call_type":   call["call_type"],
+            "caller_name": call["caller_name"],
+            "caller_avatar": url_for("serve_media", filename=call["caller_avatar"]) if call["caller_avatar"] else ""
+        })
+    return jsonify(None)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # STATUSES (24-hr Stories)
 # ═══════════════════════════════════════════════════════════════════════════════

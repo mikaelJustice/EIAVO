@@ -193,6 +193,18 @@
         <div class="chat-hd-sub">@{{ other.username }} · {{ other.role|capitalize }}</div>
       </div>
     </a>
+
+    <!-- Call buttons -->
+    <div style="display:flex;gap:6px;flex-shrink:0">
+      <button onclick="startCall('audio')" class="icon-btn" style="background:#f0f2f5;color:var(--ink)"
+              title="Audio call">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 8.63 19.79 19.79 0 01.02 5.18 2 2 0 012 3h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.1 10.69a16 16 0 006.22 6.22l1.05-1.06a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 17z"/></svg>
+      </button>
+      <button onclick="startCall('video')" class="icon-btn" style="background:#f0f2f5;color:var(--ink)"
+              title="Video call">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+      </button>
+    </div>
   </div>
 
   <!-- Messages -->
@@ -620,6 +632,25 @@ document.getElementById('chatForm').addEventListener('submit', async function(e)
     sendBtn.disabled = false;
   }
 });
+
+
+// ── Calls ───────────────────────────────────────────────────────────────────
+window.startCall = async function(callType) {
+  // Open call page — we'll get the call_id from the server
+  const res = await fetch('/call/initiate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ callee_id: OTHER_ID, call_type: callType, offer: '' })
+  });
+  const d = await res.json();
+  // Open call in new window (like WhatsApp Web) or same tab on mobile
+  const isMobile = window.innerWidth < 820;
+  if (isMobile) {
+    window.location.href = `/call/${d.call_id}`;
+  } else {
+    window.open(`/call/${d.call_id}`, 'call', 'width=480,height=780,resizable=yes');
+  }
+};
 
 </script>
 {% endblock %}

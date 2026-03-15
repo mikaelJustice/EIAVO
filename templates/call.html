@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>{{ call.call_type|title }} Call — {{ other.username }}</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --navy:#2e3192; --navy-d:#1e2070;
+      --red:#ed4956; --green:#25d366;
+    }
+    html,body{
+      height:100%; background:#111;
+      font-family:'Inter',system-ui,sans-serif;
+      color:#fff; overflow:hidden;
+      -webkit-font-smoothing:antialiased;
+    }
+
+    /* ── Full screen container ── */
+    #callScreen{
+      position:fixed; inset:0;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:space-between;
+      padding:max(44px,env(safe-area-inset-top)) 0 max(32px,env(safe-area-inset-bottom));
+      z-index:1;
+    }
+
+    /* ── Remote video (fills background) ── */
+    #remoteVideo{
+      position:fixed; inset:0;
+      width:100%; height:100%;
+      object-fit:cover; background:#111;
+      z-index:0;
+    }
+    /* Blurred avatar when no video */
+    #callBg{
+      position:fixed; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      background:linear-gradient(135deg,#1a2e5a,#0a0a1a);
+      z-index:0;
+    }
+    .bg-avatar{
+      width:120px; height:120px; border-radius:50%;
+      background:var(--navy); display:flex; align-items:center;
+      justify-content:center; font-size:44px; font-weight:800;
+      border:4px solid rgba(255,255,255,.2);
+      box-shadow:0 0 80px rgba(46,49,146,.6);
+    }
+    .bg-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+    /* Ripple rings */
+    .ripple{
+      position:absolute; border-radius:50%;
+      border:2px solid rgba(255,255,255,.15);
+      animation:ripple 2.5s ease-out infinite;
+    }
+    .ripple:nth-child(1){width:180px;height:180px;animation-delay:0s}
+    .ripple:nth-child(2){width:240px;height:240px;animation-delay:.6s}
+    .ripple:nth-child(3){width:300px;height:300px;animation-delay:1.2s}
+    @keyframes ripple{0%{opacity:.5;transform:scale(.9)}100%{opacity:0;transform:scale(1.2)}}
+
+    /* ── Local video (pip) ── */
+    #localVideo{
+      position:fixed; top:max(56px,calc(env(safe-area-inset-top)+12px)); right:14px;
+      width:90px; height:130px; border-radius:12px;
+      object-fit:cover; background:#222;
+      border:2px solid rgba(255,255,255,.3);
+      box-shadow:0 4px 20px rgba(0,0,0,.5);
+      z-index:10; cursor:grab;
+    }
+    #localVideo.audio-mode{display:none}
+
+    /* ── Top info ── */
+    .call-top{
+      position:relative; z-index:5;
+      text-align:center; padding:0 20px;
+    }
+    .call-other-name{font-size:26px;font-weight:800;margin-bottom:4px;text-shadow:0 2px 10px rgba(0,0,0,.5)}
+    .call-status{font-size:14px;color:rgba(255,255,255,.7);letter-spacing:.03em}
+    .call-timer{font-size:22px;font-weight:700;color:#fff;margin-top:2px;display:none;font-variant-numeric:tabular-nums}
+
+    /* ── Controls ── */
+    .call-controls{
+      position:relative; z-index:5;
+      display:flex; gap:20px; align-items:center; justify-content:center;
+      padding:0 20px;
+    }
+    .ctrl-btn{
+      width:60px; height:60px; border-radius:50%;
+      border:none; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      transition:transform .12s, opacity .12s;
+      flex-shrink:0;
+    }
+    .ctrl-btn:active{transform:scale(.9)}
+    .ctrl-btn.end{background:var(--red); width:68px; height:68px;}
+    .ctrl-btn.answer{background:var(--green); width:68px; height:68px;}
+    .ctrl-btn.muted{background:rgba(255,255,255,.15);outline:2px solid var(--red)}
+    .ctrl-btn.normal{background:rgba(255,255,255,.15)}
+    .ctrl-btn.off{background:rgba(255,255,255,.12);opacity:.6}
+    .ctrl-label{
+      font-size:11px; font-weight:600; color:rgba(255,255,255,.75);
+      margin-top:6px; text-align:center; white-space:nowrap;
+    }
+    .ctrl-wrap{display:flex;flex-direction:column;align-items:center}
+
+    /* ── Incoming ring screen ── */
+    #incomingScreen{
+      position:fixed; inset:0; z-index:20;
+      background:linear-gradient(135deg,#1a2e5a,#0a0a1a);
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:space-between;
+      padding:max(60px,env(safe-area-inset-top)) 30px max(44px,env(safe-area-inset-bottom));
+    }
+    .inc-top{text-align:center}
+    .inc-label{font-size:13px;color:rgba(255,255,255,.6);margin-bottom:12px;letter-spacing:.08em;text-transform:uppercase}
+    .inc-name{font-size:30px;font-weight:800;margin-bottom:6px}
+    .inc-type{font-size:14px;color:rgba(255,255,255,.6)}
+    .inc-avatar{
+      width:110px;height:110px;border-radius:50%;
+      background:var(--navy);display:flex;align-items:center;
+      justify-content:center;font-size:40px;font-weight:800;
+      border:3px solid rgba(255,255,255,.25);
+      box-shadow:0 0 60px rgba(46,49,146,.5);
+      margin:20px auto; overflow:hidden; position:relative;
+    }
+    .inc-avatar img{width:100%;height:100%;object-fit:cover}
+    .inc-btns{display:flex;gap:48px;align-items:center}
+    .inc-ring-label{font-size:12px;color:rgba(255,255,255,.6);text-align:center;margin-top:6px}
+  </style>
+</head>
+<body>
+
+<!-- ══ INCOMING SCREEN (callee only, shown while ringing) ══ -->
+{% if not is_caller %}
+<div id="incomingScreen">
+  <div class="inc-top">
+    <div class="inc-label">Incoming {{ call.call_type }} call</div>
+    <div style="position:relative;display:inline-block">
+      <div class="ripple"></div><div class="ripple"></div><div class="ripple"></div>
+      <div class="inc-avatar">
+        {% if other.avatar %}<img src="{{ url_for('serve_media', filename=other.avatar) }}" alt="">
+        {% else %}{{ other.username[0].upper() }}{% endif %}
+      </div>
+    </div>
+    <div class="inc-name">{{ other.username }}</div>
+    <div class="inc-type">EIA Voice · {{ call.call_type|title }} call</div>
+  </div>
+  <div>
+    <div class="inc-btns">
+      <div class="ctrl-wrap">
+        <button class="ctrl-btn" style="background:#666" onclick="declineCall()">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <div class="inc-ring-label">Decline</div>
+      </div>
+      <div class="ctrl-wrap">
+        <button class="ctrl-btn answer" onclick="answerCall()">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="white"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 8.63 19.79 19.79 0 01.02 5.18 2 2 0 012 3h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.1 10.69a16 16 0 006.22 6.22l1.05-1.06a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 17v-.08z"/></svg>
+        </button>
+        <div class="inc-ring-label">Accept</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ══ CALL SCREEN ══ -->
+<div id="callBg">
+  <div style="position:relative;display:flex;align-items:center;justify-content:center">
+    <div class="ripple" id="bgRipple1"></div>
+    <div class="ripple" id="bgRipple2"></div>
+    <div class="ripple" id="bgRipple3"></div>
+    <div class="bg-avatar">
+      {% if other.avatar %}<img src="{{ url_for('serve_media', filename=other.avatar) }}" alt="">
+      {% else %}{{ other.username[0].upper() }}{% endif %}
+    </div>
+  </div>
+</div>
+<video id="remoteVideo" autoplay playsinline></video>
+<video id="localVideo" autoplay playsinline muted {% if call.call_type == 'audio' %}class="audio-mode"{% endif %}></video>
+
+<div id="callScreen">
+  <div class="call-top">
+    <div class="call-other-name">{{ other.username }}</div>
+    <div class="call-status" id="callStatus">
+      {% if is_caller %}Calling…{% else %}Connecting…{% endif %}
+    </div>
+    <div class="call-timer" id="callTimer">0:00</div>
+  </div>
+
+  <div class="call-controls" id="callControls">
+    {% if call.call_type == 'video' %}
+    <div class="ctrl-wrap">
+      <button class="ctrl-btn normal" id="camBtn" onclick="toggleCamera()">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+      </button>
+      <div class="ctrl-label">Camera</div>
+    </div>
+    {% endif %}
+    <div class="ctrl-wrap">
+      <button class="ctrl-btn normal" id="micBtn" onclick="toggleMic()">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+      </button>
+      <div class="ctrl-label">Mute</div>
+    </div>
+    <div class="ctrl-wrap">
+      <button class="ctrl-btn normal" id="speakerBtn" onclick="toggleSpeaker()">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+      </button>
+      <div class="ctrl-label">Speaker</div>
+    </div>
+    <div class="ctrl-wrap">
+      <button class="ctrl-btn end" onclick="endCall()">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="white"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 8.63 19.79 19.79 0 01.02 5.18 2 2 0 012 3h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.1 10.69a16 16 0 006.22 6.22l1.05-1.06a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 17v-.08z" transform="rotate(135 12 12)"/></svg>
+      </button>
+      <div class="ctrl-label">End</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CALL_ID   = "{{ call.id }}";
+const IS_CALLER = {{ 'true' if is_caller else 'false' }};
+const CALL_TYPE = "{{ call.call_type }}";
+const OTHER_NAME= "{{ other.username }}";
+
+const ICE_SERVERS = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "stun:stun.cloudflare.com:3478" },
+];
+
+let pc           = null;
+let localStream  = null;
+let timerInterval= null;
+let timerSeconds = 0;
+let lastCandId   = 0;
+let pollInterval = null;
+let micOn        = true;
+let camOn        = true;
+
+// ── Startup ───────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  if (IS_CALLER) {
+    startCaller();
+  } else {
+    // callee waits on incoming screen (already visible)
+    startPolling();
+  }
+});
+
+// ── Get media ─────────────────────────────────────────────────────────────────
+async function getMedia() {
+  const constraints = CALL_TYPE === 'video'
+    ? { audio: true, video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } }
+    : { audio: true, video: false };
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    document.getElementById('localVideo').srcObject = localStream;
+  } catch(e) {
+    setStatus('Camera/mic error: ' + e.message);
+    console.error(e);
+  }
+}
+
+// ── Create RTCPeerConnection ───────────────────────────────────────────────────
+function createPC() {
+  pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+
+  if (localStream) {
+    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+  }
+
+  pc.onicecandidate = async e => {
+    if (e.candidate) {
+      await fetch(`/call/${CALL_ID}/candidate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidate: JSON.stringify(e.candidate) })
+      });
+    }
+  };
+
+  pc.ontrack = e => {
+    const rv = document.getElementById('remoteVideo');
+    if (rv.srcObject !== e.streams[0]) {
+      rv.srcObject = e.streams[0];
+      document.getElementById('callBg').style.display = 'none';
+    }
+  };
+
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'connected') {
+      setStatus('');
+      document.getElementById('callTimer').style.display = 'block';
+      document.getElementById('callStatus').style.display = 'none';
+      startTimer();
+    } else if (['disconnected','failed','closed'].includes(pc.connectionState)) {
+      hangup('Connection lost');
+    }
+  };
+}
+
+// ── CALLER: create offer ──────────────────────────────────────────────────────
+async function startCaller() {
+  await getMedia();
+  createPC();
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+
+  await fetch('/call/initiate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      callee_id: {{ other.id }},
+      call_type: CALL_TYPE,
+      offer: JSON.stringify(offer)
+    })
+  });
+  // Replace URL with our actual call ID from initiate response
+  // (We already have CALL_ID from template — initiate already ran server-side before page load)
+  setStatus('Ringing…');
+  startPolling();
+}
+
+// ── CALLEE: answer ────────────────────────────────────────────────────────────
+window.answerCall = async function() {
+  document.getElementById('incomingScreen').style.display = 'none';
+  await getMedia();
+  createPC();
+  const data = await (await fetch(`/call/${CALL_ID}/status`)).json();
+  if (!data.offer) { hangup('No offer received'); return; }
+  await pc.setRemoteDescription(JSON.parse(data.offer));
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+  await fetch(`/call/${CALL_ID}/answer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ answer: JSON.stringify(answer) })
+  });
+  setStatus('Connecting…');
+  startPolling();
+};
+
+window.declineCall = async function() {
+  await fetch(`/call/${CALL_ID}/decline`, { method: 'POST' });
+  window.close();
+  window.location.href = '/messages';
+};
+
+// ── Polling: exchange answer + ICE candidates ─────────────────────────────────
+function startPolling() {
+  pollInterval = setInterval(poll, 1200);
+}
+
+async function poll() {
+  try {
+    const data = await (await fetch(`/call/${CALL_ID}/status?since=${lastCandId}`)).json();
+
+    if (['ended','declined'].includes(data.status)) {
+      hangup(data.status === 'declined' ? OTHER_NAME + ' declined' : 'Call ended');
+      return;
+    }
+
+    // Caller: receive answer
+    if (IS_CALLER && data.answer && pc && pc.signalingState === 'have-local-offer') {
+      await pc.setRemoteDescription(JSON.parse(data.answer));
+      setStatus('Ringing…');
+    }
+
+    // Apply remote ICE candidates
+    if (data.candidates && data.candidates.length > 0) {
+      for (const c of data.candidates) {
+        if (c.id > lastCandId) lastCandId = c.id;
+        if (pc && pc.remoteDescription) {
+          try { await pc.addIceCandidate(new RTCIceCandidate(JSON.parse(c.candidate))); } catch(e){}
+        }
+      }
+    }
+  } catch(e) { console.warn('Poll error', e); }
+}
+
+// ── Controls ──────────────────────────────────────────────────────────────────
+window.toggleMic = function() {
+  if (!localStream) return;
+  micOn = !micOn;
+  localStream.getAudioTracks().forEach(t => t.enabled = micOn);
+  const btn = document.getElementById('micBtn');
+  btn.className = 'ctrl-btn ' + (micOn ? 'normal' : 'muted');
+  btn.querySelector('div')?.remove();
+};
+
+window.toggleCamera = function() {
+  if (!localStream) return;
+  camOn = !camOn;
+  localStream.getVideoTracks().forEach(t => t.enabled = camOn);
+  const btn = document.getElementById('camBtn');
+  btn.className = 'ctrl-btn ' + (camOn ? 'normal' : 'off');
+};
+
+window.toggleSpeaker = function() {
+  const rv = document.getElementById('remoteVideo');
+  rv.muted = !rv.muted;
+  const btn = document.getElementById('speakerBtn');
+  btn.className = 'ctrl-btn ' + (rv.muted ? 'off' : 'normal');
+};
+
+// ── Timer ─────────────────────────────────────────────────────────────────────
+function startTimer() {
+  timerInterval = setInterval(() => {
+    timerSeconds++;
+    const m = Math.floor(timerSeconds/60).toString().padStart(2,'0');
+    const s = (timerSeconds%60).toString().padStart(2,'0');
+    document.getElementById('callTimer').textContent = m + ':' + s;
+  }, 1000);
+}
+
+function setStatus(msg) {
+  document.getElementById('callStatus').textContent = msg;
+}
+
+// ── End ───────────────────────────────────────────────────────────────────────
+window.endCall = async function() {
+  await fetch(`/call/${CALL_ID}/end`, { method: 'POST' });
+  hangup('Call ended');
+};
+
+function hangup(reason) {
+  clearInterval(pollInterval);
+  clearInterval(timerInterval);
+  if (pc) { pc.close(); pc = null; }
+  if (localStream) { localStream.getTracks().forEach(t => t.stop()); }
+  setStatus(reason || 'Call ended');
+  setTimeout(() => {
+    if (window.opener) { window.close(); }
+    else { window.location.href = '/messages'; }
+  }, 1400);
+}
+
+// Draggable PiP
+(function(){
+  const pip = document.getElementById('localVideo');
+  if (!pip) return;
+  let dragging=false, ox=0, oy=0;
+  pip.addEventListener('mousedown', e=>{ dragging=true; ox=e.clientX-pip.offsetLeft; oy=e.clientY-pip.offsetTop; e.preventDefault(); });
+  document.addEventListener('mousemove', e=>{ if(!dragging) return; pip.style.left=(e.clientX-ox)+'px'; pip.style.top=(e.clientY-oy)+'px'; pip.style.right='auto'; });
+  document.addEventListener('mouseup', ()=>dragging=false);
+})();
+</script>
+</body>
+</html>
