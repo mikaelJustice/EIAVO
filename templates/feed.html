@@ -167,17 +167,28 @@
 
   /* ── Status Viewer (full-screen, tap left/right to navigate) ── */
   .sv-overlay {
-    position: fixed; inset: 0; z-index: 800;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: 100vw; height: 100vh;
+    z-index: 9000;
     background: #000;
-    display: none; align-items: center; justify-content: center;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
   }
-  .sv-overlay.open { display: flex; }
+  .sv-overlay.open {
+    display: flex;
+  }
 
   .sv-stage {
-    width: 100%; max-width: 420px;
-    height: 100%; max-height: 100svh;
-    position: relative;
-    display: flex; flex-direction: column;
+    position: absolute;
+    top: 0; left: 50%; right: 0; bottom: 0;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 480px;
+    height: 100vh;
+    overflow: hidden;
   }
 
   /* Progress strips across top */
@@ -225,13 +236,14 @@
 
   /* Main content */
   .sv-content {
-    width:100%;height:100%;
-    position:relative;
-    display:flex;align-items:center;justify-content:center;
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center;
   }
   .sv-bg {
-    position:absolute;inset:0;
-    display:flex;align-items:center;justify-content:center;
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center;
   }
   .sv-text {
     position:relative;z-index:2;
@@ -906,16 +918,24 @@ function dlDoc(btn, url, filename) {
   window.openSV = (groupIdx, statusIdx) => {
     svGroupIdx  = groupIdx;
     svStatusIdx = statusIdx;
-    document.getElementById('svOverlay').classList.add('open');
+    const ov = document.getElementById('svOverlay');
+    ov.classList.add('open');
+    // Hard lock scroll on everything
+    document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
     renderSV();
   };
 
   window.closeSV = () => {
     clearSVTimer();
     document.getElementById('svOverlay').classList.remove('open');
+    document.documentElement.style.overflow = '';
     document.body.style.overflow = '';
-    loadStatuses(); // refresh rings after viewing
+    document.body.style.position = '';
+    document.body.style.width = '';
+    loadStatuses();
   };
 
   window.svNav = (dir) => {

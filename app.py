@@ -1449,6 +1449,21 @@ def send_voice(conv_id):
     return jsonify({"ok": True})
 
 
+@app.route("/message/<msg_id>/delete", methods=["POST"])
+@login_required
+def delete_message(msg_id):
+    from flask import jsonify
+    user = current_user()
+    msg  = query("SELECT * FROM messages WHERE id=?", (msg_id,), one=True)
+    if not msg:
+        return jsonify({"ok": False, "error": "Not found"}), 404
+    # Only sender can delete their own message
+    if msg["sender_id"] != user["id"] and user["role"] not in ("admin","super_admin"):
+        return jsonify({"ok": False, "error": "Not yours"}), 403
+    execute("DELETE FROM messages WHERE id=?", (msg_id,))
+    return jsonify({"ok": True})
+
+
 @app.route("/messages/<conv_id>/video", methods=["POST"])
 @login_required
 def send_video_msg(conv_id):

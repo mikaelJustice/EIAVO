@@ -233,6 +233,7 @@
       <div class="msg-sender-name">{{ m.anon_name if m.is_anon and m.anon_name else m.username }}</div>
       {% endif %}
 
+      <div class="msg-bubble-wrap" id="wrap-{{ m.id }}">
       <div class="msg-outer">
         {% if not is_mine %}
         <div class="msg-av">{{ (m.anon_name or m.username or '?')[0].upper() if not m.is_anon else '?' }}</div>
@@ -303,6 +304,11 @@
           {% endif %}
 
           <div class="msg-footer">
+            {% if is_mine %}
+            <button class="msg-del-btn" onclick="deleteMsg('{{ m.id }}', this)" title="Delete">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+            </button>
+            {% endif %}
             <span>{{ _rel(m.created_at) }}</span>
             {% if is_mine %}
             <span class="ticks">
@@ -573,9 +579,7 @@ document.getElementById('chatInp').addEventListener('keydown', function(e){
 });
 
 // ── Intercept form submit for instant feel ──
-document.getElementById('chatForm').addEventListener('submit', function(){
-  setTimeout(()=>{ lastMsgCount=0; }, 500);
-});
+// (handled inside the main submit listener below)
 
 // ── Media Attach ────────────────────────────────────────────────────────────
 let _attachedFile = null;
@@ -608,16 +612,22 @@ window.clearMediaAttach = function() {
   document.getElementById('chatInp').placeholder = 'Message…';
 };
 
-// Override form submit to handle media upload
+// Single submit handler — handles both media and normal text
 document.getElementById('chatForm').addEventListener('submit', async function(e) {
-  if (!_attachedFile) return; // let form submit normally
+  lastMsgCount = 0; // reset poll counter
+
+  if (!_attachedFile) return; // no media — let normal POST proceed
+
   e.preventDefault();
   const caption = document.getElementById('chatInp').value.trim();
   const fd = new FormData();
   fd.append('video_file', _attachedFile);
   if (caption) fd.append('caption', caption);
   const sendBtn = this.querySelector('.send-btn');
+  const origHtml = sendBtn.innerHTML;
   sendBtn.disabled = true;
+  sendBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+
   try {
     const res = await fetch(`/messages/${CONV_ID}/video`, { method:'POST', body: fd });
     const d   = await res.json();
@@ -625,14 +635,50 @@ document.getElementById('chatForm').addEventListener('submit', async function(e)
       clearMediaAttach();
       document.getElementById('chatInp').value = '';
       location.reload();
+    } else {
+      alert('Upload failed: ' + (d.error || 'unknown error'));
     }
   } catch(err) {
-    console.error(err);
+    console.error('Media send error:', err);
+    alert('Could not send — please check your connection.');
   } finally {
     sendBtn.disabled = false;
+    sendBtn.innerHTML = origHtml;
   }
 });
 
+
+// ── Delete Message ──────────────────────────────────────────────────────────
+window.deleteMsg = async function(msgId, btn) {
+  if (!confirm('Delete this message?')) return;
+  try {
+    const res = await fetch(`/message/${msgId}/delete`, { method:'POST' });
+    const d   = await res.json();
+    if (d.ok) {
+      // Remove the whole message group row from DOM
+      const row = btn.closest('.msg-group');
+      if (row) {
+        row.style.transition = 'opacity .2s, transform .2s';
+        row.style.opacity = '0';
+        row.style.transform = 'scale(.97)';
+        setTimeout(() => row.remove(), 220);
+      }
+    }
+  } catch(e) { console.error(e); }
+};
+
+// Long-press on mobile to show delete button
+let _lpTimer = null;
+document.querySelectorAll && document.addEventListener('touchstart', e => {
+  const bubble = e.target.closest('.msg-group.mine');
+  if (!bubble) return;
+  _lpTimer = setTimeout(() => {
+    const del = bubble.querySelector('.msg-del-btn');
+    if (del) { del.classList.add('visible'); }
+  }, 600);
+}, { passive: true });
+document.addEventListener('touchend', () => clearTimeout(_lpTimer));
+document.addEventListener('touchmove', () => clearTimeout(_lpTimer), { passive: true });
 
 // ── Calls ───────────────────────────────────────────────────────────────────
 window.startCall = async function(callType) {
