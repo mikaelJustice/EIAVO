@@ -14,6 +14,42 @@
   }
 
   /* Outer scroll container */
+  /* Animated brand gradient behind reels */
+  .main-wrap {
+    background: #0a0a14;
+    position: relative;
+  }
+  .main-wrap::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: linear-gradient(135deg, #0a0a1e 0%, #0d1a10 50%, #0a0a1e 100%);
+    background-size: 400% 400%;
+    animation: reelbg 12s ease infinite;
+    z-index: 0;
+    pointer-events: none;
+  }
+  @keyframes reelbg {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  /* Moving brand blobs behind reels */
+  .reel-blob {
+    position: fixed; border-radius: 50%;
+    filter: blur(80px); opacity: .15;
+    pointer-events: none; z-index: 0;
+    animation: blobdrift 14s ease-in-out infinite;
+  }
+  .reel-blob-1 { width:500px;height:500px;background:#2e3192;top:-100px;left:-100px; }
+  .reel-blob-2 { width:400px;height:400px;background:#25d366;bottom:-80px;right:-80px;animation-delay:-5s;animation-duration:11s; }
+  .reel-blob-3 { width:260px;height:260px;background:#b8d432;top:40%;left:50%;animation-delay:-9s;animation-duration:9s; }
+  @keyframes blobdrift {
+    0%,100%{transform:translate(0,0)}
+    33%{transform:translate(40px,-50px)}
+    66%{transform:translate(-30px,30px)}
+  }
+
   .reels-container {
     position: fixed;
     top: 0;
@@ -32,7 +68,43 @@
   .reels-container::-webkit-scrollbar { display: none; }
 
   @media(max-width:820px) {
-    .reels-container { left: 0; bottom: 60px; }
+    /* Animated brand gradient behind reels */
+  .main-wrap {
+    background: #0a0a14;
+    position: relative;
+  }
+  .main-wrap::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: linear-gradient(135deg, #0a0a1e 0%, #0d1a10 50%, #0a0a1e 100%);
+    background-size: 400% 400%;
+    animation: reelbg 12s ease infinite;
+    z-index: 0;
+    pointer-events: none;
+  }
+  @keyframes reelbg {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  /* Moving brand blobs behind reels */
+  .reel-blob {
+    position: fixed; border-radius: 50%;
+    filter: blur(80px); opacity: .15;
+    pointer-events: none; z-index: 0;
+    animation: blobdrift 14s ease-in-out infinite;
+  }
+  .reel-blob-1 { width:500px;height:500px;background:#2e3192;top:-100px;left:-100px; }
+  .reel-blob-2 { width:400px;height:400px;background:#25d366;bottom:-80px;right:-80px;animation-delay:-5s;animation-duration:11s; }
+  .reel-blob-3 { width:260px;height:260px;background:#b8d432;top:40%;left:50%;animation-delay:-9s;animation-duration:9s; }
+  @keyframes blobdrift {
+    0%,100%{transform:translate(0,0)}
+    33%{transform:translate(40px,-50px)}
+    66%{transform:translate(-30px,30px)}
+  }
+
+  .reels-container { left: 0; bottom: 60px; }
   }
 
   /* One reel = full viewport height, centred */
@@ -373,6 +445,9 @@
 </div>
 {% else %}
 
+<div class="reel-blob reel-blob-1"></div>
+<div class="reel-blob reel-blob-2"></div>
+<div class="reel-blob reel-blob-3"></div>
 <div class="reels-container" id="reelsContainer">
   {% for reel in reels %}
   <div class="reel-item" data-post-id="{{ reel.id }}">
@@ -606,6 +681,7 @@
   function deactivateReel(video, item) {
     if (!video) return;
     video.pause();
+    video.currentTime = 0;   // TikTok behaviour: always restart from beginning
     if (item) {
       clearInterval(item._progressTimer);
       const bar = item.querySelector('.reel-progress-bar');

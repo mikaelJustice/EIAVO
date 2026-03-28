@@ -1,55 +1,698 @@
 {% extends "base.html" %}
-{% block title %}{{ other.name }}{% endblock %}
+{% block title %}{{ other.username }}{% endblock %}
+{% block page_class %}wa-page{% endblock %}
+
+{% block extra_head %}
+<style>
+.main-wrap { background: #111b21; }
+.page-center.wa-page {
+  padding: 0 !important;
+  max-width: 100% !important;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #efeae2;
+  position: relative;
+}
+
+/* ── Header ── */
+.wa-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  background: #202c33;
+  flex-shrink: 0; z-index: 10;
+  min-height: 56px;
+}
+.wa-back {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #aebac1; text-decoration: none; flex-shrink: 0;
+  background: none; border: none; cursor: pointer;
+}
+.wa-back:hover { background: rgba(255,255,255,.08); }
+.wa-hav {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: #2a3942; color: #aebac1;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 16px; overflow: hidden;
+  flex-shrink: 0; cursor: pointer;
+}
+.wa-hav img { width:100%;height:100%;object-fit:cover; }
+.wa-hinfo { flex:1; min-width:0; }
+.wa-hname { font-size: 15px; font-weight: 600; color: #e9edef; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wa-hsub  { font-size: 12px; color: #8696a0; }
+.wa-hbtns { display:flex; gap:2px; flex-shrink:0; }
+.wa-hbtn {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: none; background: none; cursor: pointer;
+  color: #aebac1;
+  display: flex; align-items: center; justify-content: center;
+}
+.wa-hbtn:hover { background: rgba(255,255,255,.08); }
+
+/* ── Wallpaper body ── */
+.wa-body {
+  flex: 1;
+  overflow-y: auto; overflow-x: hidden;
+  padding: 8px 6% 8px;
+  display: flex; flex-direction: column;
+  background-color: #efeae2;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Ccircle cx='40' cy='40' r='28' stroke='%23c9b99a' stroke-width='.6' fill='none' opacity='.35'/%3E%3Ccircle cx='40' cy='40' r='16' stroke='%23c9b99a' stroke-width='.6' fill='none' opacity='.2'/%3E%3C/svg%3E");
+  -webkit-overflow-scrolling: touch;
+}
+@media(max-width:600px){ .wa-body{ padding:8px 2% 8px; } }
+
+/* ── Date chip ── */
+.wa-date { text-align:center; margin:10px 0 4px; }
+.wa-date-chip {
+  display: inline-block;
+  background: #e1f3fb;
+  color: #54656f;
+  font-size: 11.5px; font-weight: 600;
+  padding: 4px 12px; border-radius: 7px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.12);
+}
+
+/* ── Message rows ── */
+.wa-row { display:flex; margin-bottom:2px; }
+.wa-row.mine   { justify-content:flex-end; }
+.wa-row.theirs { justify-content:flex-start; }
+.wa-row.mine   + .wa-row.theirs,
+.wa-row.theirs + .wa-row.mine   { margin-top:8px; }
+
+/* ── Bubble ── */
+.wa-bubble {
+  position: relative;
+  max-width: min(72%, 420px);
+  padding: 6px 80px 8px 9px;
+  border-radius: 7.5px;
+  font-size: 14.5px;
+  line-height: 1.5;
+  word-break: break-word;
+  box-shadow: 0 1px 1.5px rgba(0,0,0,.15);
+  cursor: pointer;
+  min-width: 80px;
+}
+.wa-row.mine   .wa-bubble { background:#d9fdd3; color:#111b21; border-bottom-right-radius:2px; }
+.wa-row.theirs .wa-bubble { background:#fff;    color:#111b21; border-bottom-left-radius:2px; }
+
+/* bubble tail */
+.wa-row.mine .wa-bubble::after {
+  content:''; position:absolute; bottom:0; right:-8px;
+  width:9px; height:13px;
+  background: radial-gradient(circle at 0 0, transparent 70%, #d9fdd3 70%);
+}
+.wa-row.theirs .wa-bubble::after {
+  content:''; position:absolute; bottom:0; left:-8px;
+  width:9px; height:13px;
+  background: radial-gradient(circle at 100% 0, transparent 70%, #fff 70%);
+}
+
+/* Sender name */
+.wa-sender { font-size:12.5px; font-weight:700; color:#06cf9c; margin-bottom:3px; }
+
+/* ── Reply quote inside bubble ── */
+.wa-rq {
+  background: rgba(0,0,0,.06);
+  border-left: 3px solid #25d366;
+  border-radius: 4px;
+  padding: 5px 8px;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+}
+.wa-row.mine .wa-rq { border-color: rgba(0,100,0,.4); }
+.wa-rq-name { font-weight:700; font-size:12px; color:#06cf9c; margin-bottom:1px; }
+.wa-rq-text { color:#667781; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:220px; }
+
+/* ── Meta (time + ticks) bottom-right of bubble ── */
+.wa-meta {
+  position: absolute;
+  bottom: 5px; right: 7px;
+  display: flex; align-items: center; gap: 2px;
+  font-size: 11px; color: #667781;
+  white-space: nowrap; pointer-events: none;
+  background: inherit;
+}
+.wa-row.theirs .wa-meta { color:#8696a0; }
+.wa-ticks svg { width:15px;height:15px;vertical-align:middle; }
+
+/* Delete btn — shown on hover/long-press */
+.wa-del {
+  position: absolute;
+  top: -8px; right: -8px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #ef4444; border: none; cursor: pointer;
+  color: #fff;
+  display: none; align-items: center; justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,.25);
+  z-index: 5;
+  pointer-events: all;
+}
+.wa-row.mine .wa-bubble:hover .wa-del,
+.wa-del.show { display:flex; }
+
+/* ── Voice bubble ── */
+.wa-voice {
+  display:flex; align-items:center; gap:10px;
+  min-width:200px; padding:4px 0 2px;
+}
+.wa-vbtn {
+  width:38px;height:38px;border-radius:50%;
+  border:none;cursor:pointer;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:#25d366;color:#fff;
+}
+.wa-vwave { flex:1;height:28px;display:flex;align-items:center;gap:2px; }
+.wa-vwave span { width:3px;border-radius:3px;background:rgba(0,0,0,.25); }
+.wa-row.mine .wa-vwave span { background:rgba(0,90,40,.35); }
+.wa-vwave.playing span { animation:vw .7s ease-in-out infinite alternate; }
+.wa-vwave.playing span:nth-child(2n){animation-delay:.1s}
+.wa-vwave.playing span:nth-child(3n){animation-delay:.22s}
+.wa-vwave.playing span:nth-child(4n){animation-delay:.34s}
+@keyframes vw{from{opacity:.2;height:4px}to{opacity:.9;height:20px}}
+.wa-vdur { font-size:11px;color:#667781;min-width:30px; }
+
+/* ── Media bubble ── */
+.wa-bubble.media { padding:4px 4px 26px !important; min-width:140px; max-width:min(72%,280px) !important; }
+.wa-bubble.media img,
+.wa-bubble.media video { width:100%;border-radius:5px;display:block;max-height:260px;object-fit:cover; }
+.wa-media-cap { padding:4px 6px 0; font-size:14px; }
+.wa-bubble.media .wa-meta { background:rgba(0,0,0,.35);color:#fff;border-radius:8px;padding:1px 5px;bottom:6px;right:6px; }
+
+/* ── Reply bar ── */
+.wa-rbar {
+  display:none; align-items:center; gap:10px;
+  padding:8px 14px;
+  background:#202c33;
+  border-top:1px solid #2a3942;
+  flex-shrink:0;
+}
+.wa-rbar.on { display:flex; }
+.wa-rbar-line { width:3px;height:36px;border-radius:2px;background:#25d366;flex-shrink:0; }
+.wa-rbar-info { flex:1;min-width:0; }
+.wa-rbar-name { font-size:12px;font-weight:700;color:#25d366; }
+.wa-rbar-text { font-size:12px;color:#8696a0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.wa-rbar-close { width:28px;height:28px;border-radius:50%;border:none;background:none;cursor:pointer;color:#8696a0;display:flex;align-items:center;justify-content:center; }
+.wa-rbar-close:hover { background:rgba(255,255,255,.08);color:#e9edef; }
+
+/* ── Recording bar ── */
+.wa-recbar {
+  display:none; align-items:center; gap:10px;
+  padding:10px 16px;
+  background:#202c33;
+  border-top:1px solid #2a3942;
+  flex-shrink:0;
+}
+.wa-recbar.on { display:flex; }
+.wa-recdot { width:8px;height:8px;border-radius:50%;background:#ef4444;animation:pulse 1s infinite; }
+.wa-rectime { font-size:13px;font-weight:600;color:#e9edef; }
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.2)}}
+
+/* ── Media preview ── */
+.wa-mstrip {
+  display:none; align-items:center; gap:10px;
+  padding:8px 16px 0;
+  background:#202c33;
+  border-top:1px solid #2a3942;
+  flex-shrink:0;
+}
+.wa-mstrip.on { display:flex; }
+.wa-mthumb { width:64px;height:64px;border-radius:8px;overflow:hidden;background:#000;flex-shrink:0;position:relative; }
+.wa-mthumb img,.wa-mthumb video { width:100%;height:100%;object-fit:cover;display:block; }
+.wa-mclear { position:absolute;top:-5px;right:-5px;width:19px;height:19px;border-radius:50%;background:#555;border:none;color:#fff;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;z-index:2; }
+.wa-mname { font-size:12px;color:#8696a0; }
+
+/* ── Input bar ── */
+.wa-foot {
+  display:flex; align-items:flex-end; gap:6px;
+  padding:8px 8px max(10px,env(safe-area-inset-bottom));
+  background:#202c33;
+  flex-shrink:0;
+}
+.wa-inpwrap {
+  flex:1; display:flex; align-items:center; gap:4px;
+  background:#2a3942; border-radius:24px;
+  padding:6px 10px 6px 14px; min-height:44px;
+}
+.wa-inp {
+  flex:1; border:none; outline:none;
+  font-size:15px; font-family:inherit;
+  background:transparent; color:#e9edef;
+  resize:none; max-height:80px; line-height:1.5; padding:0;
+}
+.wa-inp::placeholder { color:#8696a0; }
+.wa-attbtn {
+  width:32px;height:32px;border-radius:50%;border:none;
+  background:none;cursor:pointer;color:#8696a0;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  transition:color .12s;
+}
+.wa-attbtn:hover { color:#e9edef; }
+.wa-anonbtn {
+  font-size:10.5px;font-weight:700;
+  padding:2px 8px;border-radius:10px;
+  border:1.5px solid #3d5364;background:none;
+  color:#8696a0;cursor:pointer;white-space:nowrap;
+  transition:all .12s;
+}
+.wa-anonbtn.on { background:#25d366;border-color:#25d366;color:#fff; }
+.wa-sendbtn, .wa-micbtn {
+  width:48px;height:48px;border-radius:50%;
+  background:#25d366;border:none;cursor:pointer;color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.25);
+  transition:background .12s, transform .1s;
+}
+.wa-sendbtn:active,.wa-micbtn:active { transform:scale(.92); }
+.wa-sendbtn:hover { background:#20c45e; }
+.wa-micbtn.recording { background:#ef4444;animation:pulse 1s infinite; }
+
+/* Mobile */
+@media(max-width:480px){
+  .wa-bubble { font-size:14px; max-width:84%; }
+  .wa-inp { font-size:16px !important; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="card" style="overflow:hidden">
-  <div class="chat-header">
-    <a href="{{ url_for('messages') }}" class="btn btn-outline btn-sm" style="padding:5px 10px">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+<div class="page-center wa-page">
+
+  <!-- Header -->
+  <div class="wa-header">
+    <a href="{{ url_for('messages') }}" class="wa-back">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
     </a>
-    <div class="av av-md">
-      {% if other.avatar %}<img src="{{ url_for('serve_media', filename=other.avatar) }}" alt="">
-      {% else %}{{ other.name[0].upper() }}{% endif %}
-    </div>
-    <div>
-      <div style="font-weight:700;font-size:15px">{{ other.name }}</div>
-      <div style="font-size:12px;color:var(--ink2)">@{{ other.username }}</div>
+    <a href="{{ url_for('profile', username=other.username) }}" style="display:contents">
+      <div class="wa-hav">
+        {% if other.avatar %}<img src="{{ url_for('serve_media', filename=other.avatar) }}" alt="">
+        {% else %}{{ other.username[0].upper() }}{% endif %}
+      </div>
+    </a>
+    <a href="{{ url_for('profile', username=other.username) }}" style="flex:1;min-width:0;text-decoration:none">
+      <div class="wa-hname">{{ other.username }}</div>
+      <div class="wa-hsub">@{{ other.username }}</div>
+    </a>
+    <div class="wa-hbtns">
+      <button class="wa-hbtn" onclick="startCall('audio')" title="Audio call">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 8.63 19.79 19.79 0 01.02 5.18 2 2 0 012 3h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.1 10.69a16 16 0 006.22 6.22l1.05-1.06a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 18z"/></svg>
+      </button>
+      <button class="wa-hbtn" onclick="startCall('video')" title="Video call">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+      </button>
     </div>
   </div>
 
-  <div class="chat-messages">
+  <!-- Messages -->
+  <div class="wa-body" id="waBody">
+    {% if not msgs %}
+    <div style="text-align:center;padding:40px 16px;color:#8696a0">
+      <div style="font-size:34px;margin-bottom:8px">🔒</div>
+      <div style="font-size:13px">Messages are private</div>
+      <div style="font-size:13px;margin-top:4px">Say hello to <strong style="color:#e9edef">{{ other.username }}</strong></div>
+    </div>
+    {% endif %}
+
+    {% set ns = namespace(last_date='', last_sender=-1) %}
     {% for m in msgs %}
     {% set is_mine = m.sender_id == cu.id %}
-    <div class="msg-row {% if is_mine %}mine{% endif %}">
-      <div>
-        {% if not is_mine %}
-        <div style="font-size:11px;color:var(--ink3);margin-bottom:3px;padding-left:4px">
-          {{ m.anon_name if m.is_anon and m.anon_name else m.name }}
+    {% set display_name = 'You' if is_mine else (m.anon_name if m.is_anon and m.anon_name else m.username) %}
+    {% set msg_date = m.created_at[:10] %}
+
+    {% if msg_date != ns.last_date %}
+    <div class="wa-date"><span class="wa-date-chip" data-date="{{ msg_date }}">{{ msg_date }}</span></div>
+    {% set ns.last_date = msg_date %}
+    {% set ns.last_sender = -1 %}
+    {% endif %}
+
+    {% if ns.last_sender != m.sender_id %}{% set ns.last_sender = m.sender_id %}{% endif %}
+
+    <div class="wa-row {{ 'mine' if is_mine else 'theirs' }}" id="msg-{{ m.id }}">
+
+      {% if m.msg_type == 'voice' and m.voice_url %}
+      <!-- Voice -->
+      <div class="wa-bubble" style="padding:8px 80px 8px 9px"
+           data-msg-id="{{ m.id }}" data-msg-sender="{{ display_name|e }}" data-msg-preview="Voice message"
+           onclick="replyBubble(this)">
+        {% if not is_mine %}<div class="wa-sender">{{ display_name }}</div>{% endif %}
+        <div class="wa-voice" data-voice-url="{{ m.voice_url }}">
+          <button class="wa-vbtn" onclick="event.stopPropagation();toggleVoice(this)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </button>
+          <div class="wa-vwave">{% for h in [10,18,8,24,14,8,20,10,22,16,10,18] %}<span style="height:{{h}}px"></span>{% endfor %}</div>
+          <span class="wa-vdur">0:00</span>
+        </div>
+        <div class="wa-meta">
+          {{ _rel(m.created_at) }}
+          {% if is_mine %}<span class="wa-ticks">{% if m.is_read %}<svg viewBox="0 0 24 24" fill="none" stroke="#53bdeb" stroke-width="2.5" stroke-linecap="round"><polyline points="1 12 5 16 11 8"/><polyline points="8 12 12 16 18 8"/></svg>{% else %}<svg viewBox="0 0 24 24" fill="none" stroke="#8696a0" stroke-width="2.5" stroke-linecap="round"><polyline points="4 12 9 17 20 6"/></svg>{% endif %}</span>{% endif %}
+        </div>
+        {% if is_mine %}<button class="wa-del" onclick="event.stopPropagation();delMsg('{{ m.id }}',this)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>{% endif %}
+      </div>
+
+      {% elif m.msg_type in ('video','image') and m.video_url %}
+      <!-- Media -->
+      <div class="wa-bubble media"
+           data-msg-id="{{ m.id }}" data-msg-sender="{{ display_name|e }}" data-msg-preview="{{ '📹 Video' if m.msg_type == 'video' else '🖼 Image' }}"
+           onclick="replyBubble(this)">
+        {% if not is_mine %}<div class="wa-sender">{{ display_name }}</div>{% endif %}
+        {% if m.msg_type == 'video' %}
+        <video src="{{ m.video_url }}" controls playsinline preload="metadata"></video>
+        {% else %}
+        <a href="{{ m.video_url }}" target="_blank"><img src="{{ m.video_url }}" alt=""></a>
+        {% endif %}
+        {% if m.content and m.content not in ('📹 Video','🖼 Image') %}<div class="wa-media-cap">{{ m.content }}</div>{% endif %}
+        <div class="wa-meta">
+          {{ _rel(m.created_at) }}
+          {% if is_mine %}<span class="wa-ticks">{% if m.is_read %}<svg viewBox="0 0 24 24" fill="none" stroke="#53bdeb" stroke-width="2.5" stroke-linecap="round"><polyline points="1 12 5 16 11 8"/><polyline points="8 12 12 16 18 8"/></svg>{% else %}<svg viewBox="0 0 24 24" fill="none" stroke="#8696a0" stroke-width="2.5" stroke-linecap="round"><polyline points="4 12 9 17 20 6"/></svg>{% endif %}</span>{% endif %}
+        </div>
+        {% if is_mine %}<button class="wa-del" onclick="event.stopPropagation();delMsg('{{ m.id }}',this)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>{% endif %}
+      </div>
+
+      {% else %}
+      <!-- Text -->
+      <div class="wa-bubble"
+           data-msg-id="{{ m.id }}" data-msg-sender="{{ display_name|e }}" data-msg-preview="{{ m.content[:80]|e }}"
+           onclick="replyBubble(this)">
+        {% if not is_mine %}<div class="wa-sender">{{ display_name }}</div>{% endif %}
+        {% if m.reply_to and m.reply_preview %}
+        <div class="wa-rq">
+          <div class="wa-rq-name">{{ m.reply_preview.split('|||')[0] if '|||' in m.reply_preview else 'Message' }}</div>
+          <div class="wa-rq-text">{{ m.reply_preview.split('|||')[1] if '|||' in m.reply_preview else m.reply_preview }}</div>
         </div>
         {% endif %}
-        <div class="msg-bubble {% if is_mine %}mine{% else %}theirs{% endif %}">{{ m.content }}</div>
-        <div class="msg-meta {% if is_mine %}mine{% endif %}">{{ _rel(m.created_at) }}</div>
+        {{ m.content }}
+        <div class="wa-meta">
+          {{ _rel(m.created_at) }}
+          {% if is_mine %}<span class="wa-ticks">{% if m.is_read %}<svg viewBox="0 0 24 24" fill="none" stroke="#53bdeb" stroke-width="2.5" stroke-linecap="round"><polyline points="1 12 5 16 11 8"/><polyline points="8 12 12 16 18 8"/></svg>{% else %}<svg viewBox="0 0 24 24" fill="none" stroke="#8696a0" stroke-width="2.5" stroke-linecap="round"><polyline points="4 12 9 17 20 6"/></svg>{% endif %}</span>{% endif %}
+        </div>
+        {% if is_mine %}<button class="wa-del" onclick="event.stopPropagation();delMsg('{{ m.id }}',this)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>{% endif %}
       </div>
-    </div>
-    {% else %}
-    <div class="empty-state" style="padding:40px">
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-      <h3>Start the conversation</h3>
+      {% endif %}
+
     </div>
     {% endfor %}
   </div>
 
-  <div class="chat-input-area">
-    <form method="POST" class="chat-form">
-      <input type="text" name="content" class="chat-inp" placeholder="Message…" autocomplete="off" autofocus required>
-      <input type="hidden" name="is_anon" id="msg-anon" value="">
-      <button type="button" class="anon-toggle" data-target="msg-anon" style="border-radius:20px">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 10h.01M15 10h.01M12 2a8 8 0 018 8v12l-4-2-4 2-4-2-4 2V10a8 8 0 018-8z"/></svg>
-        <span>Anon</span>
+  <!-- Reply bar -->
+  <div class="wa-rbar" id="waRbar">
+    <div class="wa-rbar-line"></div>
+    <div class="wa-rbar-info">
+      <div class="wa-rbar-name" id="waRbarName"></div>
+      <div class="wa-rbar-text" id="waRbarText"></div>
+    </div>
+    <button class="wa-rbar-close" onclick="cancelReply()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+
+  <!-- Recording bar -->
+  <div class="wa-recbar" id="waRecbar">
+    <div class="wa-recdot"></div>
+    <span class="wa-rectime" id="waRecTime">0:00</span>
+    <button onclick="cancelRec()" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:13px;font-weight:600;color:#8696a0">Cancel</button>
+  </div>
+
+  <!-- Media preview strip -->
+  <div class="wa-mstrip" id="waMstrip">
+    <div class="wa-mthumb" id="waMthumb">
+      <img id="waMimg" src="" alt="" style="display:none">
+      <video id="waMvid" muted playsinline style="display:none"></video>
+      <button class="wa-mclear" onclick="clearMedia()">×</button>
+    </div>
+    <span class="wa-mname" id="waMname"></span>
+  </div>
+
+  <!-- Input bar -->
+  <div class="wa-foot">
+    <form id="waForm" method="POST" style="display:contents">
+      <input type="hidden" name="reply_to"      id="waRepId"   value="">
+      <input type="hidden" name="reply_preview" id="waRepData" value="">
+      <input type="hidden" name="is_anon"       id="waIsAnon"  value="">
+      <input type="hidden" name="msg_type"      value="text">
+
+      <div class="wa-inpwrap">
+        <button type="button" class="wa-anonbtn" id="waAnonBtn" onclick="toggleAnon()">Anon</button>
+        <input class="wa-inp" name="content" id="waInp" placeholder="Message" autocomplete="off">
+        <label class="wa-attbtn" title="Attach photo/video">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+          <input type="file" id="waMediaFile" accept="image/*,video/*" style="display:none" onchange="attachMedia(this)">
+        </label>
+      </div>
+
+      <button type="button" class="wa-micbtn" id="waMicBtn" onclick="toggleRec()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
       </button>
-      <button type="submit" class="chat-send">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      <button type="submit" class="wa-sendbtn" id="waSendBtn" style="display:none">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
       </button>
     </form>
   </div>
+
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CONV_ID  = "{{ conv.id }}";
+const MY_ID    = {{ cu.id }};
+const OTHER_ID = {{ other.id }};
+let lastCount  = {{ msgs|length }};
+let _attached  = null;
+let anonOn     = false;
+
+const body    = document.getElementById('waBody');
+const inp     = document.getElementById('waInp');
+const sendBtn = document.getElementById('waSendBtn');
+const micBtn  = document.getElementById('waMicBtn');
+
+// Scroll to bottom
+function scrollBot(smooth){ body.scrollTo({top:body.scrollHeight, behavior:smooth?'smooth':'instant'}); }
+scrollBot(false);
+
+// Fix date labels
+(function(){
+  const today=new Date(), yest=new Date(today); yest.setDate(today.getDate()-1);
+  const fmt=d=>d.toISOString().slice(0,10);
+  document.querySelectorAll('.wa-date-chip[data-date]').forEach(el=>{
+    if(el.dataset.date===fmt(today)) el.textContent='Today';
+    else if(el.dataset.date===fmt(yest)) el.textContent='Yesterday';
+  });
+})();
+
+// Show send / mic based on input
+inp.addEventListener('input',()=>{
+  const has = inp.value.trim().length > 0 || _attached;
+  sendBtn.style.display = has ? 'flex' : 'none';
+  micBtn.style.display  = has ? 'none' : 'flex';
+});
+inp.addEventListener('keydown', e=>{
+  if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); document.getElementById('waForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); }
+});
+
+// Auto-refresh
+function doRefresh(){
+  fetch(location.href,{credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'}})
+    .then(r=>r.text()).then(html=>{
+      const doc=new DOMParser().parseFromString(html,'text/html');
+      const nb=doc.getElementById('waBody');
+      if(!nb)return;
+      const nc=nb.querySelectorAll('.wa-row').length;
+      if(nc>lastCount){
+        const atBot=body.scrollHeight-body.scrollTop-body.clientHeight<100;
+        body.innerHTML=nb.innerHTML;
+        lastCount=nc;
+        fixDates();
+        if(atBot)scrollBot(true);
+      }
+    }).catch(()=>{});
+}
+setInterval(doRefresh,4000);
+function fixDates(){
+  const today=new Date(),yest=new Date(today);yest.setDate(today.getDate()-1);
+  const fmt=d=>d.toISOString().slice(0,10);
+  document.querySelectorAll('.wa-date-chip[data-date]').forEach(el=>{
+    if(el.dataset.date===fmt(today))el.textContent='Today';
+    else if(el.dataset.date===fmt(yest))el.textContent='Yesterday';
+  });
+}
+
+// Reply
+function replyBubble(el){ setReply(el.dataset.msgId, el.dataset.msgSender, el.dataset.msgPreview); }
+function setReply(id,name,text){
+  document.getElementById('waRepId').value=id;
+  document.getElementById('waRepData').value=name+'|||'+text;
+  document.getElementById('waRbarName').textContent=name;
+  document.getElementById('waRbarText').textContent=text;
+  document.getElementById('waRbar').classList.add('on');
+  inp.focus();
+}
+function cancelReply(){
+  document.getElementById('waRepId').value='';
+  document.getElementById('waRepData').value='';
+  document.getElementById('waRbar').classList.remove('on');
+}
+
+// Anon
+function toggleAnon(){
+  anonOn=!anonOn;
+  document.getElementById('waIsAnon').value=anonOn?'1':'';
+  document.getElementById('waAnonBtn').classList.toggle('on',anonOn);
+}
+
+// Form submit
+document.getElementById('waForm').addEventListener('submit',async function(e){
+  e.preventDefault();
+  lastCount=0;
+  if(_attached){
+    const fd=new FormData();
+    fd.append('video_file',_attached);
+    const cap=inp.value.trim();
+    if(cap)fd.append('caption',cap);
+    sendBtn.disabled=true;
+    try{
+      const r=await fetch(`/messages/${CONV_ID}/video`,{method:'POST',body:fd});
+      const d=await r.json();
+      if(d.ok){clearMedia();inp.value='';doRefresh();scrollBot(true);}
+      else alert('Upload failed: '+(d.error||'error'));
+    }catch(err){alert('Send failed');}
+    finally{sendBtn.disabled=false;}
+    return;
+  }
+  const txt=inp.value.trim();
+  if(!txt)return;
+  const fd=new FormData(this);
+  try{
+    await fetch(location.href,{method:'POST',body:fd,credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'}});
+    inp.value=''; cancelReply();
+    sendBtn.style.display='none'; micBtn.style.display='flex';
+    lastCount=0; doRefresh(); scrollBot(true);
+  }catch(err){ this.submit(); }
+});
+
+// Delete
+window.delMsg=async function(id,btn){
+  if(!confirm('Delete this message?'))return;
+  const row=btn.closest('.wa-row');
+  const r=await fetch(`/message/${id}/delete`,{method:'POST'});
+  const d=await r.json();
+  if(d.ok&&row){ row.style.opacity='0'; row.style.transition='opacity .18s'; setTimeout(()=>row.remove(),200); }
+};
+// Long-press on mobile
+let _lpt=null;
+document.addEventListener('touchstart',e=>{
+  const b=e.target.closest('.wa-row.mine .wa-bubble');
+  if(!b)return;
+  _lpt=setTimeout(()=>{ if(navigator.vibrate)navigator.vibrate(30); b.querySelector('.wa-del')?.classList.add('show'); },600);
+},{passive:true});
+document.addEventListener('touchend',()=>clearTimeout(_lpt));
+document.addEventListener('touchmove',()=>clearTimeout(_lpt),{passive:true});
+
+// Voice recording
+let recorder=null, rchunks=[], rSecs=0, rInt=null;
+async function toggleRec(){
+  if(recorder&&recorder.state==='recording'){recorder.stop();return;}
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    const mime=MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'audio/ogg';
+    recorder=new MediaRecorder(stream,{mimeType:mime});
+    rchunks=[];
+    recorder.ondataavailable=e=>{if(e.data.size>0)rchunks.push(e.data);};
+    recorder.onstop=()=>{
+      stream.getTracks().forEach(t=>t.stop());
+      clearInterval(rInt); rSecs=0;
+      document.getElementById('waRecbar').classList.remove('on');
+      micBtn.classList.remove('recording');
+      if(!rchunks.length)return;
+      sendVoiceBlob(new Blob(rchunks,{type:mime}),mime.includes('webm')?'webm':'ogg');
+    };
+    recorder.start();
+    micBtn.classList.add('recording');
+    document.getElementById('waRecbar').classList.add('on');
+    rInt=setInterval(()=>{
+      rSecs++;
+      const m=Math.floor(rSecs/60),s=rSecs%60;
+      document.getElementById('waRecTime').textContent=m+':'+String(s).padStart(2,'0');
+    },1000);
+  }catch(e){
+    if(e.name==='NotAllowedError')alert('Allow microphone access in your browser settings.');
+    else alert('Mic error: '+e.message);
+  }
+}
+function cancelRec(){ rchunks=[]; if(recorder)recorder.stop(); }
+async function sendVoiceBlob(blob,ext){
+  const fd=new FormData();
+  fd.append('voice_file',blob,'voice.'+ext);
+  const r=await fetch('/messages/'+CONV_ID+'/voice',{method:'POST',body:fd,credentials:'same-origin'});
+  if(r.ok){lastCount=0;doRefresh();scrollBot(true);}
+}
+
+// Voice playback
+const vp={};
+function toggleVoice(btn){
+  const vc=btn.closest('[data-voice-url]');
+  const url='/stream-voice?url='+encodeURIComponent(vc.dataset.voiceUrl);
+  const wave=vc.querySelector('.wa-vwave');
+  const dur=vc.querySelector('.wa-vdur');
+  if(!vp[url]){
+    vp[url]=new Audio(url);
+    vp[url].addEventListener('timeupdate',function(){
+      const s=Math.floor(this.currentTime);
+      if(dur)dur.textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+    });
+    vp[url].addEventListener('ended',()=>{
+      btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+      wave?.classList.remove('playing');
+    });
+  }
+  const a=vp[url];
+  if(a.paused){
+    Object.values(vp).forEach(x=>{if(x!==a){x.pause();x.currentTime=0;}});
+    document.querySelectorAll('.wa-vwave').forEach(w=>w.classList.remove('playing'));
+    a.play();
+    btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+    wave?.classList.add('playing');
+  }else{
+    a.pause();
+    btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+    wave?.classList.remove('playing');
+  }
+}
+
+// Media attach
+function attachMedia(input){
+  const file=input.files[0]; if(!file)return;
+  _attached=file;
+  const url=URL.createObjectURL(file);
+  const isVid=file.type.startsWith('video/');
+  const img=document.getElementById('waMimg');
+  const vid=document.getElementById('waMvid');
+  document.getElementById('waMname').textContent=file.name;
+  if(isVid){img.style.display='none';vid.src=url;vid.style.display='block';}
+  else{vid.style.display='none';img.src=url;img.style.display='block';}
+  document.getElementById('waMstrip').classList.add('on');
+  sendBtn.style.display='flex'; micBtn.style.display='none';
+  inp.placeholder='Caption (optional)…';
+}
+function clearMedia(){
+  _attached=null;
+  document.getElementById('waMediaFile').value='';
+  document.getElementById('waMstrip').classList.remove('on');
+  document.getElementById('waMimg').style.display='none';
+  document.getElementById('waMvid').style.display='none';
+  inp.placeholder='Message';
+  const has=inp.value.trim().length>0;
+  sendBtn.style.display=has?'flex':'none';
+  micBtn.style.display=has?'none':'flex';
+}
+
+// Calls
+window.startCall=async function(type){
+  const r=await fetch('/call/initiate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({callee_id:OTHER_ID,call_type:type,offer:''})});
+  const d=await r.json();
+  if(window.innerWidth<820)window.location.href=`/call/${d.call_id}`;
+  else window.open(`/call/${d.call_id}`,'call','width=480,height=780,resizable=yes');
+};
+</script>
 {% endblock %}
