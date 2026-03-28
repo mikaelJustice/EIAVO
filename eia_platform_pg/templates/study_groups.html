@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Study Groups{% endblock %}
+{% block extra_head %}
+<style>
+.groups-hero{background:linear-gradient(135deg,#311b92,#4527a0,#512da8);border-radius:var(--r);padding:28px 32px;color:#fff;margin-bottom:24px}
+.groups-hero h1{font-family:var(--font-h);font-size:22px;font-weight:800;margin-bottom:4px}
+.group-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);padding:18px 22px;margin-bottom:12px;display:flex;align-items:center;gap:16px;transition:box-shadow .15s;text-decoration:none;color:inherit}
+.group-card:hover{box-shadow:var(--shadow)}
+.group-icon{width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#4527a0,#512da8);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.group-name{font-size:16px;font-weight:700}
+.group-desc{font-size:13px;color:var(--ink3);margin-top:3px}
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+@media(max-width:600px){.panels{grid-template-columns:1fr}}
+.panel{background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);padding:20px}
+.panel h2{font-size:15px;font-weight:700;margin-bottom:14px}
+.form-row{margin-bottom:12px}
+.form-row label{display:block;font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:4px}
+.form-row input,.form-row textarea{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:13px;font-family:inherit}
+.form-row input:focus{outline:none;border-color:#4527a0}
+.btn-primary{padding:10px 20px;background:#4527a0;color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;width:100%}
+</style>
+{% endblock %}
+{% block content %}
+<div class="groups-hero">
+  <h1>Study Groups</h1>
+  <p>Create private groups for revision sessions and group projects</p>
+</div>
+
+<div class="panels">
+  <div class="panel">
+    <h2>Create a Group</h2>
+    <form method="POST" action="{{ url_for('create_study_group') }}">
+      <div class="form-row"><label>Group Name *</label><input name="name" required placeholder="e.g. Maths Revision Squad"></div>
+      <div class="form-row"><label>Description</label><textarea name="description" rows="2" placeholder="What's this group for?"></textarea></div>
+      <button type="submit" class="btn-primary">Create Group</button>
+    </form>
+  </div>
+  <div class="panel">
+    <h2>Join with Invite Code</h2>
+    <form method="POST" action="{{ url_for('join_study_group') }}">
+      <div class="form-row"><label>Invite Code</label><input name="invite_code" required placeholder="Paste the invite code here…"></div>
+      <button type="submit" class="btn-primary">Join Group</button>
+    </form>
+  </div>
+</div>
+
+<div>
+{% for g in my_groups %}
+<a href="{{ url_for('group_detail', gid=g.id) }}" class="group-card">
+  
+  <div>
+    <div class="group-name">{{ g.name }}</div>
+    {% if g.description %}<div class="group-desc">{{ g.description }}</div>{% endif %}
+  </div>
+  <div style="margin-left:auto">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+  </div>
+</a>
+{% else %}
+<div style="text-align:center;padding:48px;color:var(--ink3)">
+  
+  <p>You're not in any study groups yet. Create one or join with an invite code!</p>
+</div>
+{% endfor %}
+</div>
+{% endblock %}

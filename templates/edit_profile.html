@@ -15,15 +15,11 @@
         <span>Choose photo</span><input type="file" name="avatar" accept="image/*">
       </label>
     </div>
-    <div class="field">
-      <label>Username (Display Name)</label>
-      <input type="text" name="username" value="{{ user.username }}" required maxlength="30" placeholder="Enter your username">
-      <p style="font-size:12px;color:var(--ink2);margin-top:5px">This is the name everyone sees. Choose carefully.</p>
-    </div>
+    <div class="field"><label>Full Name</label><input type="text" name="name" value="{{ user.name }}" required></div>
     <div class="field"><label>Bio</label><textarea name="bio" rows="3" placeholder="Tell your school community about yourself…">{{ user.bio or '' }}</textarea></div>
     <div class="field"><label>Anonymous Name</label>
       <input type="text" name="anon_name" value="{{ anon_name }}" maxlength="20" placeholder="e.g. VoiceOfChange">
-      <p style="font-size:12px;color:var(--ink2);margin-top:5px">Shown instead of your username when you post anonymously. Max 20 characters.</p>
+      <p style="font-size:12px;color:var(--ink2);margin-top:5px">Shown instead of your real name when you post anonymously. Max 20 characters.</p>
     </div>
     <div style="display:flex;gap:10px;margin-top:8px">
       <button type="submit" class="btn btn-primary">Save Changes</button>
@@ -32,4 +28,3 @@
   </form>
 </div>
 {% endblock %}
-

@@ -19,10 +19,10 @@
   <div class="person-card">
     <div class="av av-lg">
       {% if u.avatar %}<img src="{{ url_for('serve_media', filename=u.avatar) }}" alt="">
-      {% else %}{{ u.username[0].upper() }}{% endif %}
+      {% else %}{{ u.name[0].upper() }}{% endif %}
     </div>
     <div class="person-name">
-      <a href="{{ url_for('profile', username=u.username) }}" style="color:inherit">{{ u.username }}</a>
+      <a href="{{ url_for('profile', username=u.username) }}" style="color:inherit">{{ u.name }}</a>
     </div>
     <div class="person-handle">@{{ u.username }}</div>
     <span class="role-tag rt-{{ u.role }}">{{ ROLE_LABELS.get(u.role, u.role) }}</span>

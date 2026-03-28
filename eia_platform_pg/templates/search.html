@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Search{% endblock %}
+{% block extra_head %}
+<style>
+.search-hero{padding:24px 0 16px}
+.search-bar-wrap{display:flex;gap:10px;margin-bottom:24px}
+.search-input{flex:1;padding:11px 18px;border:1.5px solid var(--border);border-radius:28px;font-size:15px;font-family:inherit;background:#f0f2f5;outline:none;transition:all .12s}
+.search-input:focus{background:#fff;border-color:var(--navy)}
+.search-btn{padding:11px 22px;background:var(--navy);color:#fff;border:none;border-radius:28px;font-size:14px;font-weight:700;cursor:pointer}
+.search-section{margin-bottom:28px}
+.search-section h2{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin-bottom:12px;padding-bottom:8px;border-bottom:1.5px solid var(--border)}
+.user-row{display:flex;align-items:center;gap:12px;padding:10px 14px;background:#fff;border:1.5px solid var(--border);border-radius:var(--r);margin-bottom:8px;text-decoration:none;color:inherit;transition:box-shadow .12s}
+.user-row:hover{box-shadow:var(--shadow)}
+.user-row-info{flex:1;min-width:0}
+.user-row-name{font-weight:700;font-size:14px}
+.user-row-meta{font-size:12px;color:var(--ink3)}
+.follow-chip{font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px;background:var(--navy);color:#fff;flex-shrink:0}
+.follow-chip.following{background:#f0f2f5;color:var(--ink2)}
+.ch-card{display:flex;align-items:center;gap:12px;padding:12px 14px;background:#fff;border:1.5px solid var(--border);border-radius:var(--r);margin-bottom:8px;text-decoration:none;color:inherit;transition:box-shadow .12s}
+.ch-card:hover{box-shadow:var(--shadow)}
+.ch-icon{width:40px;height:40px;border-radius:10px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0}
+.ch-info{flex:1;min-width:0}
+.ch-name{font-weight:700;font-size:14px}
+.ch-meta{font-size:12px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.post-snip{padding:12px 14px;background:#fff;border:1.5px solid var(--border);border-radius:var(--r);margin-bottom:8px}
+.post-snip-meta{font-size:12px;color:var(--ink3);margin-bottom:6px}
+.post-snip-text{font-size:14px;color:var(--ink);line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.no-results{text-align:center;padding:32px 16px;color:var(--ink3);font-size:14px}
+.role-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--blue-l);color:var(--navy);text-transform:capitalize;margin-left:4px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="search-hero">
+  <h1 style="font-size:22px;font-weight:800;margin-bottom:16px">Search</h1>
+  <form method="GET" action="{{ url_for('explore') }}" class="search-bar-wrap">
+    <input class="search-input" name="q" value="{{ q }}" placeholder="Search people, channels, posts…" autofocus autocomplete="off">
+    <button class="search-btn" type="submit">Search</button>
+  </form>
+</div>
+
+{% if not q %}
+<div class="no-results">
+  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="opacity:.3;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+  Search for people, channels, or posts
+</div>
+
+{% else %}
+
+{% if not users and not channels and not posts %}
+<div class="no-results">No results for "<strong>{{ q }}</strong>"</div>
+{% endif %}
+
+{% if users %}
+<div class="search-section">
+  <h2>People</h2>
+  {% for u in users %}
+  <a href="{{ url_for('profile', username=u.username) }}" class="user-row">
+    <div class="av av-sm">
+      {% if u.avatar %}<img src="{{ url_for('serve_media', filename=u.avatar) }}" alt="">
+      {% else %}{{ u.username[0].upper() }}{% endif %}
+    </div>
+    <div class="user-row-info">
+      <div class="user-row-name">@{{ u.username }}<span class="role-badge">{{ ROLE_LABELS.get(u.role, u.role) }}</span></div>
+      <div class="user-row-meta">{{ u.year_group or '' }}{% if u.followers %} · {{ u.followers }} follower{{ 's' if u.followers != 1 }}{% endif %}</div>
+    </div>
+    {% if u.i_follow %}<span class="follow-chip following">Following</span>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if channels %}
+<div class="search-section">
+  <h2>Channels</h2>
+  {% for ch in channels %}
+  <a href="{{ url_for('channel_detail', cid=ch.id) }}" class="ch-card">
+    <div class="ch-icon">{{ ch.name[0].upper() }}</div>
+    <div class="ch-info">
+      <div class="ch-name">{{ ch.name }}</div>
+      <div class="ch-meta">{{ ch.follower_count }} follower{{ 's' if ch.follower_count != 1 }} · {{ ch.post_count }} post{{ 's' if ch.post_count != 1 }}{% if ch.description %} · {{ ch.description[:60] }}{% endif %}</div>
+    </div>
+    {% if ch.is_following %}
+    <span class="follow-chip following">Following</span>
+    {% else %}
+    <span class="follow-chip">Follow</span>
+    {% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if posts %}
+<div class="search-section">
+  <h2>Posts</h2>
+  {% for p in posts %}
+  <div class="post-snip">
+    <div class="post-snip-meta">@{{ p.username }} · {{ _rel(p.created_at) }}</div>
+    <div class="post-snip-text">{{ p.content }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}

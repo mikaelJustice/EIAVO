@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Submissions — {{ asgn.title }}{% endblock %}
+{% block extra_head %}
+<style>
+.edu-hero{background:linear-gradient(135deg,#1a237e,#3949ab);border-radius:var(--r);padding:24px 28px;color:#fff;margin-bottom:24px}
+.edu-hero h1{font-family:var(--font-h);font-size:20px;font-weight:800;margin-bottom:4px}
+.sub-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:14px}
+.sub-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.sub-name{font-size:16px;font-weight:700}
+.sub-time{font-size:12px;color:var(--ink3)}
+.sub-content{font-size:14px;color:var(--ink);line-height:1.6;background:var(--bg);padding:12px;border-radius:var(--r-sm);margin-bottom:14px;white-space:pre-wrap}
+.grade-form{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.grade-form label{font-size:12px;font-weight:600;color:var(--ink2);display:block;margin-bottom:4px}
+.grade-form input,.grade-form textarea{padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:13px;font-family:inherit}
+.grade-form input:focus,.grade-form textarea:focus{outline:none;border-color:var(--navy)}
+.graded-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:800;background:var(--navy);color:#fff}
+.btn-sm{padding:8px 16px;background:var(--navy);color:#fff;border:none;border-radius:var(--r-sm);font-size:13px;font-weight:700;cursor:pointer}
+</style>
+{% endblock %}
+{% block content %}
+<a href="{{ url_for('assignments', cid=asgn.class_id) }}" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);margin-bottom:16px">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg> Back
+</a>
+<div class="edu-hero">
+  <h1>{{ asgn.title }}</h1>
+  <p>{{ asgn.class_name }} · {{ subs|length }} submission{{ 's' if subs|length != 1 }}</p>
+</div>
+{% for s in subs %}
+<div class="sub-card">
+  <div class="sub-header">
+    <div>
+      <div class="sub-name">@{{ s.username }}</div>
+      <div class="sub-time">Submitted {{ _rel(s.submitted_at) }}</div>
+    </div>
+    {% if s.grade %}<span class="graded-badge">{{ s.grade }} / {{ asgn.max_marks }}</span>{% endif %}
+  </div>
+  {% if s.content %}<div class="sub-content">{{ s.content }}</div>{% endif %}
+  {% if s.file_path %}
+  <div style="margin-bottom:14px">
+    <button class="doc-link" onclick="dlDoc(this,this.dataset.url,this.dataset.name)" data-url="{{ s.file_path|e }}" data-name="{{ s.file_name|e }}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      {{ s.file_name or 'Download File' }}
+    </button>
+  </div>
+  {% endif %}
+  <form method="POST" action="{{ url_for('grade_submission', aid=asgn.id, sid=s.id) }}" class="grade-form">
+    <div><label>Grade</label><input name="grade" value="{{ s.grade }}" placeholder="e.g. 85 or A" style="width:120px"></div>
+    <div style="flex:1;min-width:200px"><label>Feedback</label><textarea name="feedback" rows="1" placeholder="Optional feedback…" style="width:100%">{{ s.feedback }}</textarea></div>
+    <button type="submit" class="btn-sm">{{ 'Update' if s.grade else 'Grade' }}</button>
+  </form>
+</div>
+{% else %}
+<div style="text-align:center;padding:48px;color:var(--ink3)">No submissions yet.</div>
+{% endfor %}
+<script>
+function dlDoc(btn,url,filename){var o=btn.innerHTML;btn.innerHTML='⏳ Downloading…';btn.disabled=true;fetch('/download?url='+encodeURIComponent(url)+'&name='+encodeURIComponent(filename),{credentials:'same-origin'}).then(function(r){if(!r.ok)return r.text().then(function(t){throw new Error(t)});return r.blob()}).then(function(b){var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=filename;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1000);btn.innerHTML=o;btn.disabled=false}).catch(function(e){alert('Error: '+e.message);btn.innerHTML=o;btn.disabled=false})}
+</script>
+{% endblock %}

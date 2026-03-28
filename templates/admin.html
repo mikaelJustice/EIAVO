@@ -11,8 +11,7 @@
 <div class="stats-grid">
   <div class="stat-card"><div class="stat-big">{{ stats.users }}</div><div class="stat-lbl">Users</div></div>
   <div class="stat-card"><div class="stat-big">{{ stats.posts }}</div><div class="stat-lbl">Posts</div></div>
-  <div class="stat-card"><div class="stat-big" style="color:var(--red)">{{ stats.flagged }}</div><div class="stat-lbl">Flagged Posts</div></div>
-  <div class="stat-card"><div class="stat-big" style="color:#c62828">{{ stats.flagged_comments }}</div><div class="stat-lbl">Flagged Comments</div></div>
+  <div class="stat-card"><div class="stat-big" style="color:var(--red)">{{ stats.flagged }}</div><div class="stat-lbl">Flagged</div></div>
   <div class="stat-card"><div class="stat-big" style="color:var(--ink2)">{{ stats.anon }}</div><div class="stat-lbl">Anon Posts</div></div>
   <div class="stat-card"><div class="stat-big" style="color:var(--navy-l)">{{ stats.messages }}</div><div class="stat-lbl">Messages</div></div>
   <div class="stat-card"><div class="stat-big" style="color:var(--lime-d)">{{ stats.follows }}</div><div class="stat-lbl">Follows</div></div>
@@ -20,8 +19,7 @@
 
 <div class="tab-bar">
   <button class="tab-btn active" data-tab="users"   onclick="switchTab('users')">Users ({{ stats.users }})</button>
-  <button class="tab-btn"        data-tab="flagged" onclick="switchTab('flagged')">Flagged Posts ({{ stats.flagged }})</button>
-  <button class="tab-btn"        data-tab="flagged-comments" onclick="switchTab('flagged-comments')">Flagged Comments {% if stats.flagged_comments > 0 %}<span style="background:var(--red);color:#fff;border-radius:20px;padding:1px 7px;font-size:11px;margin-left:4px">{{ stats.flagged_comments }}</span>{% endif %}</button>
+  <button class="tab-btn"        data-tab="flagged" onclick="switchTab('flagged')">Flagged ({{ stats.flagged }})</button>
   {% if cu.role == 'super_admin' %}
   <button class="tab-btn"        data-tab="create"  onclick="switchTab('create')">Create User</button>
   {% endif %}
@@ -126,50 +124,6 @@
   {% endif %}
 </div>
 
-<!-- FLAGGED COMMENTS -->
-<div class="tab-pane" id="tab-flagged-comments">
-  {% if flagged_comments %}
-  <div style="margin-bottom:12px;padding:10px 14px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;font-size:13px;color:#7a5c00">
-    <strong>Super Admin only:</strong> These comments have been flagged as potentially abusive. You can reveal the real identity of any commenter regardless of anonymity, delete the comment, or unflag it if it's acceptable.
-  </div>
-  {% for c in flagged_comments %}
-  <div class="card" style="margin-bottom:12px;overflow:hidden;border-left:4px solid var(--red)">
-    <div class="flag-bar" style="background:#fdecea;border-color:#ef9a9a">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
-      Flagged comment — by <strong>{% if c.is_anon %}[Anonymous]{% else %}{{ c.uusername }}{% endif %}</strong>
-      <span style="margin-left:auto;font-size:11px;font-weight:400;color:#888">{{ RECIPIENT_LABELS.get(c.post_recipient, c.post_recipient) }} channel</span>
-    </div>
-    <div style="padding:14px 18px">
-      <div style="font-size:12px;color:var(--ink2);margin-bottom:6px">
-        On post: <em>"{{ c.post_content[:80] }}{% if c.post_content|length > 80 %}…{% endif %}"</em>
-      </div>
-      <div style="background:var(--bg);border-radius:8px;padding:10px 14px;font-size:14px;color:var(--ink);line-height:1.5;margin-bottom:12px;border-left:3px solid var(--red)">
-        "{{ c.content }}"
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        {% if cu.role == 'super_admin' %}
-        <button class="btn btn-outline btn-sm" onclick="revealComment('{{ c.id }}')">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-          Reveal Identity
-        </button>
-        {% endif %}
-        <button class="btn btn-outline btn-sm" onclick="unflagComment('{{ c.id }}', this)">Unflag</button>
-        <form method="POST" action="{{ url_for('delete_comment', cid=c.id) }}"
-              onsubmit="return confirm('Permanently delete this comment?')">
-          <button type="submit" class="btn btn-red btn-sm">Delete Comment</button>
-        </form>
-      </div>
-    </div>
-  </div>
-  {% endfor %}
-  {% else %}
-  <div class="empty-state">
-    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-    <h3>No flagged comments</h3><p>All comments are clean!</p>
-  </div>
-  {% endif %}
-</div>
-
 <!-- CREATE USER -->
 {% if cu.role == 'super_admin' %}
 <div class="tab-pane" id="tab-create">
@@ -180,16 +134,8 @@
       <div class="field"><label>Full Name</label><input type="text" name="name" required placeholder="Full name"></div>
       <div class="field"><label>Password</label><input type="password" name="password" required minlength="6" placeholder="min. 6 characters"></div>
       <div class="field"><label>Role</label>
-        <select name="role" id="createRoleSelect" onchange="toggleYearGroup(this)">
+        <select name="role">
           {% for r in ROLES %}{% if r != 'super_admin' %}<option value="{{ r }}">{{ r.replace('_',' ').title() }}</option>{% endif %}{% endfor %}
-        </select>
-      </div>
-      <div class="field" id="yearGroupField" style="display:none">
-        <label>Year Group <span style="font-weight:400;color:var(--ink3)">(for students)</span></label>
-        <select name="year_group">
-          <option value="">— not set —</option>
-          <option>Year 8</option><option>Year 9</option><option>Year 10</option>
-          <option>Year 11</option><option>Year 12</option><option>Year 13</option>
         </select>
       </div>
       <button type="submit" class="btn btn-primary">Create Account</button>
@@ -201,22 +147,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded',()=>{
-  switchTab('users');
-  toggleYearGroup(document.getElementById('createRoleSelect'));
-});
-
-function toggleYearGroup(sel) {
-  const yf = document.getElementById('yearGroupField');
-  if (yf) yf.style.display = sel.value === 'student' ? '' : 'none';
-}
-
-async function unflagComment(cid, btn) {
-  const res = await fetch(`/comment/${cid}/unflag`, { method: 'POST' });
-  if (res.ok) {
-    btn.closest('.card').remove();
-  }
-}
-</script>
+<script>document.addEventListener('DOMContentLoaded',()=>switchTab('users'))</script>
 {% endblock %}

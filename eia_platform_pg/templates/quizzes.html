@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Quizzes — {{ cls.name }}{% endblock %}
+{% block extra_head %}
+<style>
+.edu-hero{background:linear-gradient(135deg,#4a148c,#7b1fa2,#9c27b0);border-radius:var(--r);padding:28px 32px;color:#fff;margin-bottom:24px}
+.edu-hero h1{font-family:var(--font-h);font-size:22px;font-weight:800;margin-bottom:4px}
+.quiz-grid{display:grid;gap:14px}
+.quiz-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);padding:20px 24px;transition:box-shadow .15s}
+.quiz-card:hover{box-shadow:var(--shadow)}
+.quiz-title{font-size:17px;font-weight:700;color:var(--ink)}
+.quiz-meta{font-size:12px;color:var(--ink3);margin-top:4px;display:flex;gap:14px}
+.create-panel{background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);padding:24px;margin-bottom:24px}
+.create-panel h2{font-size:16px;font-weight:700;margin-bottom:16px}
+.q-block{background:var(--bg);border-radius:var(--r-sm);padding:16px;margin-bottom:12px;border:1px solid var(--border-l)}
+.q-block-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.q-block-title{font-size:13px;font-weight:700;color:var(--ink2)}
+.form-row{margin-bottom:10px}
+.form-row label{display:block;font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:4px}
+.form-row input,.form-row select{width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:13px;font-family:inherit}
+.form-row input:focus{outline:none;border-color:#9c27b0}
+.btn-primary{padding:10px 22px;background:#7b1fa2;color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer}
+.btn-add{padding:8px 16px;background:var(--bg);border:1.5px dashed var(--border);border-radius:var(--r-sm);font-size:13px;font-weight:600;cursor:pointer;color:var(--ink2);width:100%;margin-bottom:12px}
+.btn-add:hover{border-color:#9c27b0;color:#9c27b0}
+.score-badge{display:inline-flex;align-items:center;gap:5px;padding:5px 14px;border-radius:20px;font-size:14px;font-weight:800;background:#f3e5f5;color:#7b1fa2}
+.open-badge{background:#e8f5e9;color:#1b5e20;display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.closed-badge{background:#ffebee;color:#b71c1c;display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+</style>
+{% endblock %}
+{% block content %}
+<a href="{{ url_for('class_detail', cid=cls.id) }}" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);margin-bottom:16px">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg> Back to {{ cls.name }}
+</a>
+<div class="edu-hero">
+  <h1>Quizzes</h1>
+  <p>{{ cls.name }} · {{ quizzes|length }} quiz{{ 'zes' if quizzes|length != 1 }}</p>
+</div>
+
+{% if cu.role in ('teacher','admin','super_admin') %}
+<div class="create-panel">
+  <h2>New Quiz</h2>
+  <form method="POST" action="{{ url_for('create_quiz', cid=cls.id) }}" id="quizForm">
+    <div class="form-row"><label>Quiz Title *</label><input name="title" required placeholder="e.g. Chapter 3 Quiz"></div>
+    <div id="questionsContainer">
+      <div class="q-block">
+        <div class="q-block-header"><span class="q-block-title">Question 1</span></div>
+        <div class="form-row"><label>Question</label><input name="q1" placeholder="Enter question…"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div class="form-row"><label>Option A</label><input name="q1_a" placeholder="A"></div>
+          <div class="form-row"><label>Option B</label><input name="q1_b" placeholder="B"></div>
+          <div class="form-row"><label>Option C (optional)</label><input name="q1_c" placeholder="C"></div>
+          <div class="form-row"><label>Option D (optional)</label><input name="q1_d" placeholder="D"></div>
+        </div>
+        <div class="form-row" style="max-width:160px"><label>Correct Answer</label>
+          <select name="q1_correct"><option value="a">A</option><option value="b">B</option><option value="c">C</option><option value="d">D</option></select>
+        </div>
+      </div>
+    </div>
+    <button type="button" class="btn-add" onclick="addQuestion()">+ Add Question</button>
+    <button type="submit" class="btn-primary">Publish Quiz</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="quiz-grid">
+{% for q in quizzes %}
+{% set att = my_attempts.get(q.id) %}
+<div class="quiz-card">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div>
+      <div class="quiz-title">{{ q.title }}</div>
+      <div class="quiz-meta">
+        <span>{{ q.q_count }} question{{ 's' if q.q_count != 1 }}</span>
+        <span>{{ q.attempts }} attempt{{ 's' if q.attempts != 1 }}</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      {% if q.is_open %}<span class="open-badge">Open</span>{% else %}<span class="closed-badge">Closed</span>{% endif %}
+      {% if att %}<span class="score-badge">{{ att.score }}/{{ att.total }}</span>{% endif %}
+    </div>
+  </div>
+  <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+    {% if att %}
+      <a href="{{ url_for('quiz_results', qid=q.id) }}" style="display:inline-flex;padding:8px 16px;background:#f3e5f5;color:#7b1fa2;border-radius:var(--r-sm);font-size:13px;font-weight:700;text-decoration:none">View Results</a>
+    {% elif q.is_open and cu.role == 'student' %}
+      <a href="{{ url_for('take_quiz', qid=q.id) }}" class="btn-primary" style="font-size:13px;padding:8px 18px;text-decoration:none">Take Quiz</a>
+    {% elif cu.role in ('teacher','admin','super_admin') %}
+      <a href="{{ url_for('quiz_results', qid=q.id) }}" style="display:inline-flex;padding:8px 16px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px;font-weight:600;text-decoration:none">View Leaderboard</a>
+    {% endif %}
+  </div>
+</div>
+{% else %}
+<div style="text-align:center;padding:48px;color:var(--ink3)">No quizzes yet.</div>
+{% endfor %}
+</div>
+
+<script>
+let qCount=1;
+function addQuestion(){
+  qCount++;
+  const c=document.getElementById('questionsContainer');
+  const d=document.createElement('div');
+  d.className='q-block';
+  d.innerHTML=`<div class="q-block-header"><span class="q-block-title">Question ${qCount}</span></div>
+  <div class="form-row"><label>Question</label><input name="q${qCount}" placeholder="Enter question…"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div class="form-row"><label>Option A</label><input name="q${qCount}_a" placeholder="A"></div>
+    <div class="form-row"><label>Option B</label><input name="q${qCount}_b" placeholder="B"></div>
+    <div class="form-row"><label>Option C (optional)</label><input name="q${qCount}_c" placeholder="C"></div>
+    <div class="form-row"><label>Option D (optional)</label><input name="q${qCount}_d" placeholder="D"></div>
+  </div>
+  <div class="form-row" style="max-width:160px"><label>Correct Answer</label>
+    <select name="q${qCount}_correct"><option value="a">A</option><option value="b">B</option><option value="c">C</option><option value="d">D</option></select>
+  </div>`;
+  c.appendChild(d);
+}
+</script>
+{% endblock %}

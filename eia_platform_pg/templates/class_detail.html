@@ -1,0 +1,417 @@
+{% extends "base.html" %}
+{% block title %}{{ cls.name }}{% endblock %}
+
+<style>
+.quick-link-card{display:flex;flex-direction:column;align-items:center;gap:8px;padding:18px 12px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);text-decoration:none;color:var(--ink);transition:box-shadow .15s,border-color .15s;text-align:center;font-size:13px;font-weight:700}
+.quick-link-card:hover{box-shadow:var(--shadow);border-color:var(--navy)}
+.quick-link-card svg{opacity:.75}
+.quick-link-card:hover svg{opacity:1}
+</style>
+{% block extra_head %}
+<style>
+/* ── Layout ── */
+.class-detail-wrap { display: grid; grid-template-columns: 1fr 300px; gap: 24px; align-items: start; }
+@media(max-width:860px){ .class-detail-wrap { grid-template-columns: 1fr; } .class-sidebar { order: -1; } }
+
+/* ── Header ── */
+.class-hero {
+  background: linear-gradient(135deg, var(--navy) 0%, #2d4a8a 100%);
+  border-radius: var(--r); padding: 24px 28px; color: #fff; margin-bottom: 24px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+}
+.class-hero-info h1 { font-family: var(--font-h); font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+.class-hero-info p  { font-size: 13px; opacity: .8; }
+.class-hero-badges  { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.class-badge {
+  font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px;
+  background: rgba(255,255,255,.18); color: #fff;
+}
+
+/* ── Compose ── */
+.compose-card {
+  background: var(--white); border: 1px solid var(--border); border-radius: var(--r);
+  padding: 20px; margin-bottom: 20px;
+}
+.compose-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 14px; color: var(--ink); }
+.compose-row { margin-bottom: 12px; }
+.compose-row label { display: block; font-size: 12px; font-weight: 600; color: var(--ink2); margin-bottom: 5px; }
+.compose-row input[type="text"],
+.compose-row textarea,
+.compose-row select {
+  width: 100%; padding: 9px 12px; border: 1px solid var(--border);
+  border-radius: var(--r-sm); font-size: 14px; font-family: inherit;
+  background: var(--bg); color: var(--ink); resize: vertical;
+}
+.compose-row input:focus,
+.compose-row textarea:focus,
+.compose-row select:focus { outline: none; border-color: var(--navy); }
+.file-attach-label {
+  display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px;
+  border: 1.5px dashed var(--border); border-radius: var(--r-sm);
+  cursor: pointer; font-size: 13px; color: var(--ink2); transition: all .12s;
+}
+.file-attach-label:hover { border-color: var(--navy); color: var(--navy); }
+.file-attach-label input { display: none; }
+.file-selected { font-size: 12px; color: var(--navy); margin-left: 8px; font-weight: 600; }
+
+/* ── Class Post Card ── */
+.class-post-card {
+  background: var(--white); border: 1px solid var(--border); border-radius: var(--r);
+  margin-bottom: 16px; overflow: hidden;
+}
+.class-post-header {
+  padding: 14px 18px 0; display: flex; align-items: flex-start; gap: 12px;
+}
+.class-post-body { padding: 0 18px 14px; }
+.post-type-badge {
+  display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 9px;
+  border-radius: 20px; margin-bottom: 6px;
+}
+.pt-note         { background: #e8f5e9; color: #1b5e20; }
+.pt-paper        { background: #fff8e1; color: #7a5c00; }
+.pt-announcement { background: #e3f2fd; color: #0d47a1; }
+.class-post-title { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.class-post-content { font-size: 14px; color: var(--ink); line-height: 1.6; white-space: pre-wrap; }
+.file-download-link {
+  display: inline-flex; align-items: center; gap: 7px; margin-top: 10px;
+  padding: 8px 14px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--r-sm); font-size: 13px; color: var(--navy); font-weight: 600;
+  text-decoration: none; transition: background .12s;
+}
+.file-download-link:hover { background: #e8eaf6; }
+
+/* ── Replies ── */
+.replies-section { border-top: 1px solid var(--border-l); padding: 14px 18px; }
+.reply-row { display: flex; gap: 10px; margin-bottom: 12px; }
+.reply-body {
+  flex: 1; background: var(--bg); border-radius: var(--r-sm);
+  padding: 10px 14px; font-size: 13px; color: var(--ink);
+}
+.reply-meta { font-size: 11px; color: var(--ink3); margin-top: 4px; }
+.reply-author { font-weight: 700; color: var(--ink); }
+.reply-file-link {
+  display: inline-flex; align-items: center; gap: 5px; margin-top: 6px;
+  font-size: 12px; color: var(--navy); font-weight: 600; text-decoration: none;
+}
+.reply-form-row {
+  display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; padding-top: 12px;
+  border-top: 1px dashed var(--border-l);
+}
+.reply-form-row textarea {
+  flex: 1; padding: 9px 12px; border: 1px solid var(--border);
+  border-radius: var(--r-sm); font-size: 13px; font-family: inherit;
+  background: var(--white); resize: none; min-height: 60px;
+}
+.reply-form-row textarea:focus { outline: none; border-color: var(--navy); }
+.reply-actions { display: flex; flex-direction: column; gap: 6px; }
+
+/* ── Sidebar ── */
+.class-sidebar-card {
+  background: var(--white); border: 1px solid var(--border); border-radius: var(--r);
+  padding: 18px; margin-bottom: 16px;
+}
+.class-sidebar-card h4 {
+  font-size: 13px; font-weight: 700; color: var(--ink2); text-transform: uppercase;
+  letter-spacing: .05em; margin-bottom: 12px;
+}
+.member-row {
+  display: flex; align-items: center; gap: 10px; padding: 7px 0;
+  border-bottom: 1px solid var(--border-l); font-size: 14px;
+}
+.member-row:last-child { border: none; }
+.member-row .av { flex-shrink: 0; }
+.member-name { font-weight: 600; flex: 1; }
+.member-year { font-size: 11px; color: var(--ink3); }
+.enroll-form { display: flex; gap: 8px; margin-top: 12px; }
+.enroll-form select { flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--r-sm); font-size: 13px; background: var(--bg); }
+.enroll-form select:focus { outline: none; border-color: var(--navy); }
+.no-members { font-size: 13px; color: var(--ink3); font-style: italic; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Class Hero Header -->
+<div class="class-hero">
+  <div class="class-hero-info">
+    <h1>{{ cls.name }}</h1>
+    {% if cls.subject %}<p>{{ cls.subject }}</p>{% endif %}
+    <div class="class-hero-badges">
+      <span class="class-badge">{{ cls.year_group }}</span>
+      <span class="class-badge">{{ cls.teacher_name }}</span>
+      <span class="class-badge">{{ members | length }} students</span>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a href="{{ url_for('classes') }}" class="btn btn-outline" style="background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.3);color:#fff;font-size:13px">
+      ← All Classes
+    </a>
+    {% if cu.role in ('teacher','admin','super_admin') and (cu.role != 'teacher' or cls.teacher_id == cu.id) %}
+    <form method="POST" action="{{ url_for('delete_class', cid=cls.id) }}"
+          onsubmit="return confirm('Permanently delete this class and all its posts?')">
+      <button type="submit" class="btn btn-red" style="font-size:13px">Delete Class</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Quick Access Feature Links -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:12px;margin-bottom:24px">
+  <a href="{{ url_for('assignments', cid=cls.id) }}" class="quick-link-card">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--navy)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+    <span>Assignments</span>
+  </a>
+  <a href="{{ url_for('quizzes', cid=cls.id) }}" class="quick-link-card">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--navy)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <span>Quizzes</span>
+  </a>
+  <a href="{{ url_for('attendance', cid=cls.id) }}" class="quick-link-card">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--navy)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
+    <span>Attendance</span>
+  </a>
+  <a href="{{ url_for('resources', cid=cls.id) }}" class="quick-link-card">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--navy)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    <span>Resources</span>
+  </a>
+</div>
+
+<div class="class-detail-wrap">
+
+  <!-- Main Feed Column -->
+  <div>
+
+    <!-- Post Composer (teachers only) -->
+    {% if cu.role in ('teacher','admin','super_admin') and (cu.role != 'teacher' or cls.teacher_id == cu.id) %}
+    <div class="compose-card">
+      <h3>Post to Class</h3>
+      <form method="POST" action="{{ url_for('class_post', cid=cls.id) }}" enctype="multipart/form-data">
+        <div class="compose-row">
+          <label>Type</label>
+          <select name="post_type">
+            {% for key, label in POST_TYPES.items() %}
+            <option value="{{ key }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="compose-row">
+          <label>Title <span style="font-weight:400;color:var(--ink3)">(optional)</span></label>
+          <input type="text" name="title" placeholder="e.g. Chapter 4 Summary Notes, Mid-Term Paper…">
+        </div>
+        <div class="compose-row">
+          <label>Message / Instructions</label>
+          <textarea name="content" rows="3" placeholder="Add notes, instructions or a message for students…"></textarea>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <label class="file-attach-label">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+            Attach File
+            <input type="file" name="file" id="classFileInput" onchange="showFileName(this)">
+          </label>
+          <span class="file-selected" id="fileNameDisplay"></span>
+          <button type="submit" class="btn btn-primary">Post to Class</button>
+        </div>
+      </form>
+    </div>
+    {% endif %}
+
+    <!-- Posts Feed -->
+    {% if posts %}
+      {% for item in posts %}
+      {% set p = item.post %}
+      {% set replies = item.replies %}
+      <div class="class-post-card" id="cp-{{ p.id }}">
+        <div class="class-post-header">
+          <div class="av av-md">{{ p.author_name[0].upper() }}</div>
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <strong style="font-size:14px">{{ p.author_name }}</strong>
+              <span class="role-tag rt-{{ p.author_role }}">{{ {'student':'Student','teacher':'Teacher','admin':'Admin','super_admin':'Super Admin'}.get(p.author_role, p.author_role) }}</span>
+              <span style="font-size:12px;color:var(--ink3)">{{ _rel(p.created_at) }}</span>
+            </div>
+          </div>
+          {% if cu.role in ('teacher','admin','super_admin') %}
+          <form method="POST" action="{{ url_for('delete_class_post', pid=p.id) }}"
+                onsubmit="return confirm('Delete this post and all replies?')" style="margin-left:auto">
+            <button type="submit" class="menu-btn" title="Delete post">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            </button>
+          </form>
+          {% endif %}
+        </div>
+
+        <div class="class-post-body">
+          <span class="post-type-badge pt-{{ p.post_type }}">{{ POST_TYPES.get(p.post_type, p.post_type) }}</span>
+          {% if p.title %}<div class="class-post-title">{{ p.title }}</div>{% endif %}
+          {% if p.content %}<div class="class-post-content">{{ p.content }}</div>{% endif %}
+          {% if p.file_path %}
+          <button class="file-download-link" onclick="dlDoc(this,this.dataset.url,this.dataset.name)" data-url="{{ p.file_path|e }}" data-name="{{ p.file_name|e if p.file_name else p.file_path.split('/')[-1] }}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+            {{ p.file_name or 'Download Attachment' }}
+          </button>
+          {% endif %}
+        </div>
+
+        <!-- Replies -->
+        <div class="replies-section">
+          <div style="font-size:12px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">
+            {{ replies | length }} {{ 'Reply' if replies | length == 1 else 'Replies' }}
+          </div>
+
+          {% for r in replies %}
+          <div class="reply-row">
+            <div class="av av-sm" style="flex-shrink:0">{{ r.author_name[0].upper() }}</div>
+            <div class="reply-body">
+              <div>
+                <span class="reply-author">{{ r.author_name }}</span>
+                <span class="role-tag rt-{{ r.author_role }}" style="font-size:10px;margin-left:5px">{{ {'student':'Student','teacher':'Teacher','admin':'Admin'}.get(r.author_role, r.author_role) }}</span>
+              </div>
+              {% if r.content %}<div style="margin-top:4px">{{ r.content }}</div>{% endif %}
+              {% if r.file_path %}
+              <button class="reply-file-link" onclick="dlDoc(this,this.dataset.url,this.dataset.name)" data-url="{{ r.file_path|e }}" data-name="{{ r.file_name|e if r.file_name else r.file_path.split('/')[-1] }}">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                {{ r.file_name or 'Attachment' }}
+              </button>
+              {% endif %}
+              <div class="reply-meta">{{ _rel(r.created_at) }}</div>
+            </div>
+            {% if r.author_id == cu.id or cu.role in ('teacher','admin','super_admin') %}
+            <form method="POST" action="{{ url_for('delete_class_reply', rid=r.id) }}" style="align-self:flex-start">
+              <button type="submit" class="menu-btn" title="Delete reply" style="opacity:.5;padding:4px">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+              </button>
+            </form>
+            {% endif %}
+          </div>
+          {% endfor %}
+
+          <!-- Reply Form -->
+          <form method="POST" action="{{ url_for('class_reply', cid=cls.id, pid=p.id) }}" enctype="multipart/form-data">
+            <div class="reply-form-row">
+              <div class="av av-sm" style="flex-shrink:0;margin-top:4px">
+                {% if cu.avatar %}<img src="{{ url_for('serve_media', filename=cu.avatar) }}" alt="">
+                {% else %}{{ cu.username[0].upper() }}{% endif %}
+              </div>
+              <textarea name="content" placeholder="{% if cu.role in ('teacher','admin','super_admin') %}Reply to class…{% else %}Ask a question or submit your answer…{% endif %}" rows="2"></textarea>
+              <div class="reply-actions">
+                <label class="file-attach-label" style="padding:6px 10px;font-size:12px" title="Attach answer sheet or file">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                  File
+                  <input type="file" name="file" onchange="this.closest('form').querySelector('.reply-fname').textContent = this.files[0]?.name || ''">
+                </label>
+                <span class="reply-fname" style="font-size:10px;color:var(--navy);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+                <button type="submit" class="btn btn-primary btn-sm">Send</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+
+    {% else %}
+    <div class="card" style="text-align:center;padding:48px 20px;color:var(--ink2)">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="margin-bottom:12px;color:var(--ink3)"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+      {% if cu.role in ('teacher','admin','super_admin') %}
+      <h3>No posts yet</h3>
+      <p>Post a note, paper or announcement above to get started.</p>
+      {% else %}
+      <h3>No posts yet</h3>
+      <p>Your teacher hasn't posted anything yet. Check back soon!</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+  </div><!-- /main column -->
+
+  <!-- Sidebar -->
+  <div class="class-sidebar">
+
+    <!-- Class info card -->
+    <div class="class-sidebar-card">
+      <h4>Class Info</h4>
+      <div style="font-size:13px;color:var(--ink2);line-height:2">
+        <div><strong>Year:</strong> {{ cls.year_group }}</div>
+        {% if cls.subject %}<div><strong>Subject:</strong> {{ cls.subject }}</div>{% endif %}
+        <div><strong>Teacher:</strong> {{ cls.teacher_name }}</div>
+        <div><strong>Posts:</strong> {{ posts | length }}</div>
+        <div><strong>Students:</strong> {{ members | length }}</div>
+      </div>
+    </div>
+
+    <!-- Members card (teacher/admin view) -->
+    {% if cu.role in ('teacher','admin','super_admin') %}
+    <div class="class-sidebar-card">
+      <h4>Students ({{ members | length }})</h4>
+
+      {% if members %}
+        {% for m in members %}
+        <div class="member-row">
+          <div class="av av-sm">
+            {% if m.avatar %}<img src="{{ url_for('serve_media', filename=m.avatar) }}" alt="">
+            {% else %}{{ m.username[0].upper() }}{% endif %}
+          </div>
+          <div style="flex:1">
+            <div class="member-name">{{ m.username }}</div>
+            {% if m.year_group %}<div class="member-year">{{ m.year_group }}</div>{% endif %}
+          </div>
+          <form method="POST" action="{{ url_for('class_unenroll', cid=cls.id, sid=m.id) }}"
+                onsubmit="return confirm('Remove {{ m.username }} from this class?')">
+            <button type="submit" title="Remove student" style="background:none;border:none;cursor:pointer;color:var(--ink3);padding:2px 4px;font-size:16px">×</button>
+          </form>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="no-members">No students enrolled yet.</p>
+      {% endif %}
+
+      <!-- Enroll form -->
+      {% if all_students %}
+      <form method="POST" action="{{ url_for('class_enroll', cid=cls.id) }}" class="enroll-form" style="margin-top:14px">
+        <select name="student_id" required>
+          <option value="">Add student…</option>
+          {% for s in all_students %}
+          <option value="{{ s.id }}">{{ s.username }}{% if s.year_group %} ({{ s.year_group }}){% endif %}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary btn-sm">Add</button>
+      </form>
+      {% else %}
+        {% if members %}<p style="font-size:12px;color:var(--ink3);margin-top:10px">All students enrolled.</p>{% endif %}
+      {% endif %}
+    </div>
+    {% endif %}
+
+  </div><!-- /sidebar -->
+
+</div><!-- /grid -->
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showFileName(input) {
+  document.getElementById('fileNameDisplay').textContent = input.files[0]?.name || '';
+}
+</script>
+
+<script>
+function dlDoc(btn, url, filename) {
+  var orig = btn.innerHTML;
+  btn.innerHTML = '<span>⏳ Downloading...</span>';
+  btn.disabled = true;
+  fetch('/download?url=' + encodeURIComponent(url) + '&name=' + encodeURIComponent(filename), {credentials:'same-origin'})
+    .then(function(r){
+      if(!r.ok) return r.text().then(function(t){ throw new Error(t); });
+      return r.blob();
+    })
+    .then(function(blob){
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      btn.innerHTML = orig; btn.disabled = false;
+    })
+    .catch(function(e){ alert('Error: ' + e.message); btn.innerHTML = orig; btn.disabled = false; });
+}
+</script>
+{% endblock %}
