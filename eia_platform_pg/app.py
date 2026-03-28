@@ -85,6 +85,20 @@ RECIPIENT_LABELS = {
 # ─── Flask App ─────────────────────────────────────────────────────────────────
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key        = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+
+@app.errorhandler(500)
+def internal_error(e):
+    import traceback as _tb
+    tb = _tb.format_exc()
+    print("[500 ERROR]\n" + tb, flush=True)
+    return f"<h2>500 Internal Error</h2><pre style='font-size:12px;background:#f8f8f8;padding:16px;overflow:auto'>{tb}</pre>", 500
+
+@app.errorhandler(Exception)
+def unhandled_exception(e):
+    import traceback as _tb
+    tb = _tb.format_exc()
+    print("[UNHANDLED]\n" + tb, flush=True)
+    return f"<h2>Error: {e}</h2><pre style='font-size:12px;background:#f8f8f8;padding:16px;overflow:auto'>{tb}</pre>", 500
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 # Render gives postgres:// but psycopg2 needs postgresql://
@@ -577,6 +591,13 @@ def init_db():
         "ALTER TABLE users          ADD COLUMN IF NOT EXISTS avatar      TEXT DEFAULT ''",
         "ALTER TABLE notifications  ADD COLUMN IF NOT EXISTS actor_id    INTEGER",
         "ALTER TABLE notifications  ADD COLUMN IF NOT EXISTS notif_type  TEXT DEFAULT 'info'",
+        # Video/call/status columns added in later sessions
+        "ALTER TABLE messages       ADD COLUMN IF NOT EXISTS video_url   TEXT DEFAULT ''",
+        "ALTER TABLE messages       ADD COLUMN IF NOT EXISTS video_name  TEXT DEFAULT ''",
+        "ALTER TABLE messages       ADD COLUMN IF NOT EXISTS reply_to    TEXT DEFAULT ''",
+        "ALTER TABLE messages       ADD COLUMN IF NOT EXISTS reply_preview TEXT DEFAULT ''",
+        "ALTER TABLE messages       ADD COLUMN IF NOT EXISTS voice_url   TEXT DEFAULT ''",
+        "ALTER TABLE messages       ADD COLUMN IF NOT EXISTS msg_type    TEXT DEFAULT 'text'",
     ]
     # Each migration needs its own transaction in PostgreSQL
     db.commit()  # commit table creations first
