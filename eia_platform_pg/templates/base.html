@@ -79,12 +79,8 @@
     background:var(--white);border-right:1px solid var(--border);
     display:flex;flex-direction:column;padding:0 10px 16px;
     z-index:100;overflow-y:auto;
-  }
-  .sidebar::before{
-    content:'';display:block;height:3px;
-    background:linear-gradient(90deg,var(--navy) 0%,var(--green) 100%);
-    margin:0 -10px 0;
-    flex-shrink:0;
+    border-top:3px solid;
+    border-image:linear-gradient(90deg,var(--navy),var(--green)) 1;
   }
   .sidebar-brand{padding:20px 12px 16px;border-bottom:1px solid var(--border-l);margin-bottom:8px}
   .sidebar-brand img{height:46px;width:auto;display:block}
@@ -128,20 +124,18 @@
     color:var(--navy);
   }
   .mobile-nav-btn.active svg{
-    filter:drop-shadow(0 0 4px rgba(37,211,102,.5));
+    filter:drop-shadow(0 0 3px rgba(37,211,102,.4));
   }
   .mobile-nav-btn.active span{
-    background:linear-gradient(90deg,var(--navy),var(--green));
-    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-    background-clip:text;
+    color:var(--green-d);font-weight:700;
   }
   .mobile-badge{position:absolute;top:2px;right:4px;background:var(--red);color:#fff;min-width:16px;height:16px;border-radius:8px;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 3px}
   /* Mobile top bar */
   .mobile-topbar{
     display:none;position:sticky;top:0;z-index:150;
     background:var(--white);padding:10px 14px;align-items:center;gap:10px;
-    border-bottom:2px solid transparent;
-    border-image:linear-gradient(90deg,var(--navy),var(--green)) 1;
+    border-bottom:2px solid #e2e4f0;
+    box-shadow:0 1px 0 0 rgba(37,211,102,.3), 0 2px 0 0 rgba(46,49,146,.15);
   }
   .mobile-topbar-logo{font-family:var(--font-h);font-size:18px;font-weight:800;color:var(--navy);flex:1}
   .mobile-topbar-btn{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink2);background:#f0f2f5;border:none;cursor:pointer;text-decoration:none;flex-shrink:0}
@@ -354,9 +348,7 @@
   .page-hd{margin-bottom:20px}
   .page-hd h1{
     font-family:var(--font-h);font-size:24px;font-weight:700;
-    background:linear-gradient(135deg,var(--navy) 0%,var(--green-d) 100%);
-    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-    background-clip:text;
+    color:var(--navy);
   }
   .page-hd p{color:var(--ink2);font-size:14px;margin-top:3px}
   .empty-state{text-align:center;padding:60px 20px;color:var(--ink2)}
