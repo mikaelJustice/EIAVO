@@ -448,6 +448,23 @@
 <div class="reel-blob reel-blob-1"></div>
 <div class="reel-blob reel-blob-2"></div>
 <div class="reel-blob reel-blob-3"></div>
+<!-- Time limit HUD (only shown in timed mode) -->
+{% if rls.mode == 'timed' %}
+<div id="reelTimerHud" style="
+  position:fixed;top:max(12px,env(safe-area-inset-top));right:14px;
+  z-index:999;background:rgba(0,0,0,.65);backdrop-filter:blur(8px);
+  border-radius:20px;padding:6px 14px;display:flex;align-items:center;gap:8px;
+  font-size:13px;font-weight:700;color:#fff;
+  border:1px solid rgba(255,255,255,.15);
+">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+  <span id="reelTimerText">--:--</span>
+  <div style="width:50px;height:4px;background:rgba(255,255,255,.2);border-radius:3px;overflow:hidden">
+    <div id="reelTimerBar" style="height:100%;background:linear-gradient(90deg,#25d366,#2e3192);border-radius:3px;transition:width .5s"></div>
+  </div>
+</div>
+{% endif %}
+
 <div class="reels-container" id="reelsContainer">
   {% for reel in reels %}
   <div class="reel-item" data-post-id="{{ reel.id }}">
@@ -985,6 +1002,65 @@
   document.getElementById('reelCommentInp')?.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('reelCommentSend').click(); }
   });
+
+
+  // ── Time limit ping ───────────────────────────────────────────────────────
+  const REELS_MODE = "{{ rls.mode }}";
+  const LIMIT_SECS = {{ rls.limit_secs }};
+  let remainingSecs = {{ rls.remaining_secs }};
+  let pingInterval = null;
+
+  function formatTime(s){
+    const m=Math.floor(s/60), sec=s%60;
+    return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+  }
+
+  function updateHud(){
+    const txt = document.getElementById('reelTimerText');
+    const bar = document.getElementById('reelTimerBar');
+    if(!txt) return;
+    if(remainingSecs <= 0){
+      txt.textContent = '0:00';
+      if(bar) bar.style.width='100%';
+      if(bar) bar.style.background='#ed4956';
+      return;
+    }
+    txt.textContent = formatTime(remainingSecs);
+    if(bar && LIMIT_SECS > 0){
+      const used = LIMIT_SECS - remainingSecs;
+      const pct  = Math.min(100,(used/LIMIT_SECS)*100);
+      bar.style.width = pct+'%';
+      bar.style.background = pct>80 ? '#ed4956' : pct>50 ? '#f59e0b' : 'linear-gradient(90deg,#25d366,#2e3192)';
+    }
+  }
+
+  async function pingUsage(){
+    if(REELS_MODE !== 'timed') return;
+    try{
+      const r = await fetch('/api/reels/ping', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({secs:10})
+      });
+      const d = await r.json();
+      if(!d.allowed){
+        // Time up — redirect to blocked page
+        clearInterval(pingInterval);
+        window.location.href = '/reels';
+      } else {
+        remainingSecs = d.remaining_secs;
+        updateHud();
+      }
+    }catch(e){}
+  }
+
+  if(REELS_MODE === 'timed'){
+    updateHud();
+    // Ping every 10 seconds while watching
+    pingInterval = setInterval(pingUsage, 10000);
+    // Also count down the local display every second
+    setInterval(()=>{ if(remainingSecs>0){ remainingSecs--; updateHud(); } }, 1000);
+  }
 
 })();
 </script>

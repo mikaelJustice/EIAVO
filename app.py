@@ -574,6 +574,26 @@ def init_db():
         UNIQUE(status_id, viewer_id)
     )""")
 
+    # ── Reels time-limit control ──────────────────────────────────────────────
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS reels_settings (
+        id              INTEGER PRIMARY KEY DEFAULT 1,
+        mode            TEXT NOT NULL DEFAULT 'unlimited',
+        daily_limit_mins INTEGER NOT NULL DEFAULT 10,
+        updated_at      TEXT NOT NULL,
+        updated_by      INTEGER REFERENCES users(id),
+        CONSTRAINT single_row CHECK (id = 1)
+    )""")
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS reels_usage (
+        id          SERIAL PRIMARY KEY,
+        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        usage_date  TEXT NOT NULL,
+        seconds_used INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(user_id, usage_date)
+    )""")
+
     migrations = [
         "ALTER TABLE posts          ADD COLUMN IF NOT EXISTS media_name  TEXT DEFAULT ''",
         "ALTER TABLE messages       ADD COLUMN IF NOT EXISTS voice_url   TEXT DEFAULT ''",
@@ -1663,7 +1683,17 @@ def admin_change_role(uid):
 @login_required
 def reels():
     user = current_user()
-    role = user["role"]
+
+    # Super-admins and admins bypass the limit entirely
+    if user["role"] not in ("super_admin", "admin"):
+        rls = get_reels_status_for_user(user["id"])
+        if not rls["allowed"]:
+            return render_template("reels_blocked.html", rls=rls)
+    else:
+        rls = {"allowed": True, "mode": "unlimited", "remaining_secs": 99999,
+               "limit_secs": 0, "used_secs": 0, "limit_mins": 0}
+
+    role    = user["role"]
     visible = ROLE_VISIBLE.get(role, ["all_school", "announcement"])
 
     if visible is None:
@@ -1678,7 +1708,90 @@ def reels():
         )
 
     reels_list = [serialise_post(r, user["id"]) for r in rows]
-    return render_template("reels.html", reels=reels_list)
+    return render_template("reels.html", reels=reels_list, rls=rls)
+
+
+@app.route("/api/reels/ping", methods=["POST"])
+@login_required
+def reels_ping():
+    """Called every 10s while user is watching reels. Records usage."""
+    from flask import jsonify
+    user = current_user()
+    if user["role"] in ("super_admin", "admin"):
+        return jsonify({"ok": True, "allowed": True, "remaining_secs": 99999})
+
+    rls = get_reels_status_for_user(user["id"])
+    if not rls["allowed"]:
+        return jsonify({"ok": True, "allowed": False, "remaining_secs": 0})
+
+    # Add 10 seconds of usage (ping interval)
+    today  = _now()[:10]
+    secs   = int(request.json.get("secs", 10)) if request.is_json else 10
+    secs   = min(secs, 30)  # cap to prevent abuse
+
+    existing = query(
+        "SELECT id, seconds_used FROM reels_usage WHERE user_id=? AND usage_date=?",
+        (user["id"], today), one=True
+    )
+    if existing:
+        execute(
+            "UPDATE reels_usage SET seconds_used=seconds_used+? WHERE user_id=? AND usage_date=?",
+            (secs, user["id"], today)
+        )
+    else:
+        execute(
+            "INSERT INTO reels_usage (user_id, usage_date, seconds_used) VALUES (?,?,?)",
+            (user["id"], today, secs)
+        )
+
+    rls = get_reels_status_for_user(user["id"])
+    return jsonify({
+        "ok":            True,
+        "allowed":       rls["allowed"],
+        "remaining_secs": rls["remaining_secs"],
+        "used_secs":     rls["used_secs"],
+        "limit_secs":    rls["limit_secs"],
+    })
+
+
+@app.route("/admin/reels-control", methods=["GET", "POST"])
+@login_required
+@roles_required("super_admin")
+def admin_reels_control():
+    from flask import jsonify
+    if request.method == "POST":
+        mode      = request.form.get("mode", "unlimited")
+        limit_str = request.form.get("daily_limit_mins", "10").strip()
+        try:
+            limit = max(1, min(int(limit_str), 1440))
+        except ValueError:
+            limit = 10
+
+        existing = query("SELECT id FROM reels_settings WHERE id=1", one=True)
+        if existing:
+            execute(
+                "UPDATE reels_settings SET mode=?,daily_limit_mins=?,updated_at=?,updated_by=? WHERE id=1",
+                (mode, limit, _now(), current_user()["id"])
+            )
+        else:
+            execute(
+                "INSERT INTO reels_settings (id,mode,daily_limit_mins,updated_at,updated_by) VALUES (1,?,?,?,?)",
+                (mode, limit, _now(), current_user()["id"])
+            )
+        flash(f"Reels set to: {mode}" + (f" ({limit} mins/day)" if mode=="timed" else ""), "success")
+        return redirect(url_for("admin_reels_control"))
+
+    settings = get_reels_settings()
+    # Usage stats for today
+    today = _now()[:10]
+    usage_today = query(
+        """SELECT u.username, ru.seconds_used
+           FROM reels_usage ru JOIN users u ON ru.user_id=u.id
+           WHERE ru.usage_date=?
+           ORDER BY ru.seconds_used DESC LIMIT 20""",
+        (today,)
+    )
+    return render_template("admin_reels.html", settings=settings, usage_today=usage_today, today=today)
 
 
 @app.route("/media/<path:filename>")
@@ -2573,6 +2686,50 @@ def api_incoming_call():
 # ═══════════════════════════════════════════════════════════════════════════════
 # STATUSES (24-hr Stories)
 # ═══════════════════════════════════════════════════════════════════════════════
+
+# ─── Reels control helpers ───────────────────────────────────────────────────
+def get_reels_settings():
+    """Return reels settings row, seeding defaults if missing."""
+    s = query("SELECT * FROM reels_settings WHERE id=1", one=True)
+    if not s:
+        execute(
+            "INSERT INTO reels_settings (id,mode,daily_limit_mins,updated_at) VALUES (1,'unlimited',10,?)",
+            (_now(),)
+        )
+        s = query("SELECT * FROM reels_settings WHERE id=1", one=True)
+    return s
+
+def get_reels_status_for_user(user_id):
+    """Return dict: allowed, mode, used_secs, limit_secs, remaining_secs"""
+    s    = get_reels_settings()
+    mode = s["mode"]  # 'unlimited' | 'timed' | 'disabled'
+
+    if mode == "disabled":
+        return {"allowed": False, "mode": mode, "used_secs": 0,
+                "limit_secs": 0, "remaining_secs": 0, "limit_mins": 0}
+
+    if mode == "unlimited":
+        return {"allowed": True, "mode": mode, "used_secs": 0,
+                "limit_secs": 0, "remaining_secs": 99999, "limit_mins": 0}
+
+    # timed mode
+    today = _now()[:10]
+    usage = query(
+        "SELECT seconds_used FROM reels_usage WHERE user_id=? AND usage_date=?",
+        (user_id, today), one=True
+    )
+    used  = usage["seconds_used"] if usage else 0
+    limit = s["daily_limit_mins"] * 60
+    remaining = max(0, limit - used)
+    return {
+        "allowed":       remaining > 0,
+        "mode":          mode,
+        "used_secs":     used,
+        "limit_secs":    limit,
+        "remaining_secs": remaining,
+        "limit_mins":    s["daily_limit_mins"],
+    }
+
 
 def _status_expiry():
     """Return ISO timestamp 24 hours from now."""

@@ -596,6 +596,11 @@
     <svg class="ic" width="22" height="22"><use href="#ic-shield"/></svg> Admin
   </a>
   {% endif %}
+  {% if cu.role == 'super_admin' %}
+  <a href="{{ url_for('admin_reels_control') }}" class="nav-link {% if request.endpoint=='admin_reels_control' %}active{% endif %}">
+    <svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M17 7h5M2 17h5M17 17h5"/></svg> Reels Control
+  </a>
+  {% endif %}
   <div class="nav-spacer"></div>
   <a href="{{ url_for('profile', username=cu.username) }}" class="user-pill" style="text-decoration:none">
     <div class="av av-sm">
@@ -656,6 +661,12 @@
       <a href="{{ url_for('admin_panel') }}" class="more-drawer-item" onclick="closeMoreDrawer()">
         <div class="mdi"><svg width="18" height="18"><use href="#ic-shield"/></svg></div>
         Admin
+      </a>
+      {% endif %}
+      {% if cu.role == 'super_admin' %}
+      <a href="{{ url_for('admin_reels_control') }}" class="more-drawer-item" onclick="closeMoreDrawer()">
+        <div class="mdi"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        Reels Ctrl
       </a>
       {% endif %}
     </div>

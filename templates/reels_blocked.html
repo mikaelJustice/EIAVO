@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Reels Unavailable{% endblock %}
+{% block content %}
+<style>
+.rb-wrap{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 20px}
+.rb-icon{width:90px;height:90px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;background:linear-gradient(135deg,var(--navy),var(--green-d))}
+.rb-title{font-family:var(--font-h);font-size:26px;font-weight:800;color:var(--ink);margin-bottom:10px}
+.rb-sub{font-size:15px;color:var(--ink2);line-height:1.65;max-width:380px;margin:0 auto 30px}
+.rb-timer{font-family:var(--font-h);font-size:48px;font-weight:900;color:var(--navy);margin-bottom:6px}
+.rb-timer-label{font-size:13px;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em}
+.rb-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);padding:28px 32px;margin-bottom:24px;max-width:380px;width:100%}
+.rb-bar-wrap{background:#f0f2f5;border-radius:8px;height:8px;margin:16px 0 8px;overflow:hidden}
+.rb-bar{height:100%;border-radius:8px;background:linear-gradient(90deg,var(--navy),var(--green));transition:width .3s}
+.rb-bar-label{display:flex;justify-content:space-between;font-size:12px;color:var(--ink3)}
+.rb-note{font-size:13px;color:var(--ink2);line-height:1.6;max-width:360px;margin:0 auto}
+</style>
+
+<div class="rb-wrap">
+  {% if rls.mode == 'disabled' %}
+  <!-- Fully disabled -->
+  <div class="rb-icon">
+    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+  </div>
+  <div class="rb-title">Reels are disabled</div>
+  <div class="rb-sub">The school administration has turned off the Reels section. It will be re-enabled when announced.</div>
+  <div class="rb-note">Focus on your studies — the content will be here when it's back. 📚</div>
+
+  {% else %}
+  <!-- Timed limit reached -->
+  <div class="rb-icon">
+    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+  </div>
+  <div class="rb-title">Daily Reels limit reached</div>
+  <div class="rb-sub">You've used your {{ rls.limit_mins }} minute allowance for today. Reels reset every 24 hours.</div>
+
+  <div class="rb-card">
+    {% set used_pct = ((rls.used_secs / rls.limit_secs) * 100)|round|int if rls.limit_secs > 0 else 100 %}
+    <div style="font-size:13px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Today's usage</div>
+    <div class="rb-bar-wrap"><div class="rb-bar" style="width:{{ [used_pct,100]|min }}%"></div></div>
+    <div class="rb-bar-label">
+      <span>{{ (rls.used_secs // 60) }}m {{ (rls.used_secs % 60) }}s used</span>
+      <span>{{ rls.limit_mins }}m limit</span>
+    </div>
+
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <div class="rb-timer-label">Resets in</div>
+      <div class="rb-timer" id="resetTimer">--:--:--</div>
+    </div>
+  </div>
+
+  <div class="rb-note">Use this time to study, read, or take a break. Your Reels will be waiting tomorrow! 🎓</div>
+  {% endif %}
+</div>
+
+{% if rls.mode == 'timed' %}
+<script>
+function updateResetTimer(){
+  const now = new Date();
+  const midnight = new Date();
+  midnight.setHours(24,0,0,0);
+  const diff = Math.max(0, Math.floor((midnight - now) / 1000));
+  const h = Math.floor(diff/3600), m = Math.floor((diff%3600)/60), s = diff%60;
+  document.getElementById('resetTimer').textContent =
+    String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+updateResetTimer();
+setInterval(updateResetTimer,1000);
+</script>
+{% endif %}
+{% endblock %}
