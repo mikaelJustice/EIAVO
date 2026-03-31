@@ -866,6 +866,48 @@ if(!window.location.pathname.includes('/messages/')) {
 }
 </script>
 
+<!-- ── Presence ping (keeps user marked online) ── -->
+<script>
+(function(){
+  // Ping every 25 seconds to keep user marked online
+  async function pingPresence(){
+    try{ await fetch('/api/presence/ping',{method:'POST',credentials:'same-origin'}); }catch(e){}
+  }
+  pingPresence();
+  setInterval(pingPresence, 25000);
+
+  // Online dot colours: green=online, blue=away
+  window._onlineUsers = {};
+
+  async function refreshOnline(){
+    try{
+      const r = await fetch('/api/presence/status',{credentials:'same-origin'});
+      const d = await r.json();
+      window._onlineUsers = d;
+      // Update all dots that are already in the DOM
+      document.querySelectorAll('[data-online-uid]').forEach(dot => {
+        const uid = dot.dataset.onlineUid;
+        const st  = d[uid];
+        if(st === 'online'){
+          dot.style.display='block';
+          dot.style.background='#25d366';
+          dot.classList.remove('away');
+        } else if(st === 'away'){
+          dot.style.display='block';
+          dot.style.background='#3b82f6';
+          dot.classList.add('away');
+        } else {
+          dot.style.display='none';
+        }
+      });
+    }catch(e){}
+  }
+  refreshOnline();
+  setInterval(refreshOnline, 30000);
+  window.refreshOnlineDots = refreshOnline;
+})();
+</script>
+
 <!-- ── Incoming call banner (shown on all pages) ── -->
 <div class="inc-call-banner" id="incCallBanner">
   <div class="inc-call-av" id="incCallAv"></div>

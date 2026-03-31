@@ -586,6 +586,13 @@ def init_db():
     )""")
 
     cur.execute("""
+    CREATE TABLE IF NOT EXISTS user_presence (
+        user_id     INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        last_seen   TEXT NOT NULL,
+        status      TEXT NOT NULL DEFAULT 'online'
+    )""")
+
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS reels_usage (
         id          SERIAL PRIMARY KEY,
         user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -2557,6 +2564,64 @@ def delete_class_reply(rid):
 
 
 # ─── Entrypoint ───────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# ONLINE PRESENCE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/presence/ping", methods=["POST"])
+@login_required
+def presence_ping():
+    """Called every 30s by all logged-in users to mark them online."""
+    from flask import jsonify
+    user = current_user()
+    execute("""
+        INSERT INTO user_presence (user_id, last_seen, status)
+        VALUES (?, ?, 'online')
+        ON CONFLICT (user_id) DO UPDATE SET last_seen=EXCLUDED.last_seen, status='online'
+    """, (_now(), ))
+    # Fix: proper upsert
+    existing = query("SELECT user_id FROM user_presence WHERE user_id=?", (user["id"],), one=True)
+    if existing:
+        execute("UPDATE user_presence SET last_seen=?, status='online' WHERE user_id=?", (_now(), user["id"]))
+    else:
+        execute("INSERT INTO user_presence (user_id, last_seen, status) VALUES (?,?,'online')", (user["id"], _now()))
+    return jsonify({"ok": True})
+
+
+@app.route("/api/presence/status")
+@login_required
+def presence_status():
+    """Returns online status of users the current user follows."""
+    from flask import jsonify
+    user = current_user()
+    # Get online users followed by current user (seen in last 2 minutes = online, 5 min = away)
+    rows = query("""
+        SELECT up.user_id, up.last_seen, up.status,
+               u.username
+        FROM user_presence up
+        JOIN users u ON up.user_id = u.id
+        JOIN follows f ON f.followee_id = up.user_id AND f.follower_id = ?
+        WHERE up.last_seen > ?
+    """, (user["id"], _now()[:11] + "00:00:00"))  # today
+    
+    result = {}
+    now_ts = __import__('datetime').datetime.utcnow()
+    for r in rows:
+        try:
+            last = __import__('datetime').datetime.strptime(r["last_seen"][:19], "%Y-%m-%d %H:%M:%S")
+            diff = (now_ts - last).total_seconds()
+            if diff < 120:
+                status = "online"
+            elif diff < 300:
+                status = "away"
+            else:
+                continue  # skip offline
+            result[str(r["user_id"])] = status
+        except Exception:
+            pass
+    return jsonify(result)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CALLS (WebRTC P2P — signalling via DB polling)
 # ═══════════════════════════════════════════════════════════════════════════════

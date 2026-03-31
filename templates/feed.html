@@ -165,117 +165,237 @@
     white-space: nowrap;
   }
 
-  /* ── Status Viewer (full-screen, tap left/right to navigate) ── */
+  /* ════════════════════════════════════════
+     STATUS VIEWER  — WhatsApp / Stories style
+  ════════════════════════════════════════ */
+
+  /* Full-screen backdrop */
   .sv-overlay {
     position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    width: 100vw; height: 100vh;
-    z-index: 9000;
+    inset: 0;
+    z-index: 9900;
     background: #000;
     display: none;
-    align-items: center;
-    justify-content: center;
     overflow: hidden;
   }
-  .sv-overlay.open {
+  .sv-overlay.open { display: block; }
+
+  /* Slide-in animation */
+  @keyframes svSlideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to   { transform: translateX(0);    opacity: 1; }
+  }
+  @keyframes svSlideOut {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-30%) scale(.95); opacity:0; }
+  }
+
+  /* The single visible story card */
+  .sv-card {
+    position: absolute;
+    inset: 0;
+    max-width: 520px;
+    margin: 0 auto;
     display: flex;
+    flex-direction: column;
+    background: #111;
   }
 
-  .sv-stage {
+  /* ── Progress bars row ── */
+  .sv-progs {
     position: absolute;
-    top: 0; left: 50%; right: 0; bottom: 0;
-    transform: translateX(-50%);
-    width: 100%;
-    max-width: 480px;
-    height: 100vh;
-    overflow: hidden;
-  }
-
-  /* Progress strips across top */
-  .sv-progress-row {
-    position: absolute; top: 0; left: 0; right: 0;
+    top: 0; left: 0; right: 0;
     display: flex; gap: 3px;
-    padding: max(10px,env(safe-area-inset-top)) 10px 6px;
-    z-index: 5;
+    padding: max(10px,env(safe-area-inset-top)) 10px 0;
+    z-index: 20;
   }
-  .sv-prog-seg {
+  .sv-pseg {
     flex: 1; height: 2.5px;
-    border-radius: 2px;
-    background: rgba(255,255,255,.35);
-    overflow: hidden;
+    background: rgba(255,255,255,.3);
+    border-radius: 2px; overflow: hidden;
   }
-  .sv-prog-fill {
-    height: 100%; width: 0%;
-    background: #fff;
+  .sv-pfill {
+    height: 100%; width: 0%; background: #fff;
   }
 
-  /* Header row */
-  .sv-header {
+  /* ── Top header bar ── */
+  .sv-hdr {
     position: absolute;
-    top: max(30px, calc(env(safe-area-inset-top) + 20px));
+    top: max(24px, calc(env(safe-area-inset-top)+14px));
     left: 0; right: 0;
     display: flex; align-items: center; gap: 10px;
-    padding: 8px 14px;
+    padding: 6px 12px;
+    z-index: 20;
+  }
+  /* Thumbnail strip of all users (left side of header) */
+  .sv-user-strip {
+    display: flex; gap: 6px; align-items: center;
+    overflow-x: auto; flex: 1;
+    scrollbar-width: none;
+  }
+  .sv-user-strip::-webkit-scrollbar { display: none; }
+  .sv-user-thumb {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    cursor: pointer; flex-shrink: 0; opacity: .5;
+    transition: opacity .15s;
+  }
+  .sv-user-thumb.active { opacity: 1; }
+  .sv-uthumb-ring {
+    width: 36px; height: 36px; border-radius: 50%;
+    padding: 2px;
+    background: rgba(255,255,255,.3);
+  }
+  .sv-user-thumb.active .sv-uthumb-ring {
+    background: linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);
+  }
+  .sv-uthumb-inner {
+    width: 100%; height: 100%; border-radius: 50%;
+    background: var(--navy); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 12px; overflow: hidden;
+    border: 2px solid #000;
+  }
+  .sv-uthumb-inner img { width:100%;height:100%;object-fit:cover; }
+  .sv-uthumb-name {
+    font-size: 9px; font-weight: 600; color: rgba(255,255,255,.75);
+    max-width: 36px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .sv-close-btn {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: rgba(0,0,0,.4); border: none; color: #fff;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* ── Author row (below thumbnails) ── */
+  .sv-author-row {
+    position: absolute;
+    top: max(76px, calc(env(safe-area-inset-top)+66px));
+    left: 0; right: 0;
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 14px;
+    z-index: 20;
+  }
+  .sv-author-av {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: var(--navy); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 15px; overflow: hidden; flex-shrink: 0;
+    border: 2px solid rgba(255,255,255,.5);
+    position: relative;
+  }
+  .sv-author-av img { width:100%;height:100%;object-fit:cover; }
+  .sv-author-name { font-size: 14px; font-weight: 700; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.5); }
+  .sv-author-time { font-size: 11px; color: rgba(255,255,255,.65); margin-top: 1px; }
+  .sv-online-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #25d366; border: 2px solid #000;
+    position: absolute; bottom: 0; right: 0;
+    animation: onlinePulse 2s ease-in-out infinite;
+  }
+  @keyframes onlinePulse {
+    0%,100%{ box-shadow:0 0 0 0 rgba(37,211,102,.5); }
+    50%{ box-shadow:0 0 0 4px rgba(37,211,102,0); }
+  }
+
+  /* ── Content area (full screen) ── */
+  .sv-media {
+    position: absolute;
+    inset: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sv-media img, .sv-media video {
+    width: 100%; height: 100%; object-fit: cover;
+  }
+  .sv-bg-color {
+    position: absolute; inset: 0;
+  }
+  .sv-text-overlay {
+    position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    color: #fff; font-size: 26px; font-weight: 800;
+    text-align: center; padding: 24px 28px;
+    line-height: 1.4; text-shadow: 0 2px 16px rgba(0,0,0,.6);
+    max-width: 400px; word-break: break-word;
     z-index: 5;
   }
-  .sv-av {
-    width: 36px; height: 36px; border-radius: 50%;
-    overflow: hidden; border: 2px solid rgba(255,255,255,.6);
-    background: var(--navy); flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 800; font-size: 14px; color: #fff;
-  }
-  .sv-av img { width:100%;height:100%;object-fit:cover; }
-  .sv-author-name { color:#fff;font-weight:700;font-size:14px;flex:1;text-shadow:0 1px 4px rgba(0,0,0,.5); }
-  .sv-time { color:rgba(255,255,255,.6);font-size:12px; }
-  .sv-close {
-    width:32px;height:32px;border-radius:50%;
-    background:rgba(0,0,0,.35);border:none;color:#fff;
-    cursor:pointer;display:flex;align-items:center;justify-content:center;
-  }
 
-  /* Main content */
-  .sv-content {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
+  /* ── Hold-to-pause overlay ── */
+  .sv-hold-indicator {
+    position: absolute; inset: 0; z-index: 8;
     display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity .15s; pointer-events: none;
+    background: rgba(0,0,0,.3);
   }
-  .sv-bg {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .sv-text {
-    position:relative;z-index:2;
-    color:#fff;font-size:24px;font-weight:700;
-    text-align:center;padding:80px 28px 80px;
-    line-height:1.5;text-shadow:0 2px 12px rgba(0,0,0,.5);
-    max-width:380px;word-break:break-word;
-  }
+  .sv-hold-indicator.show { opacity: 1; }
+  .sv-hold-indicator svg { filter: drop-shadow(0 2px 8px rgba(0,0,0,.5)); }
 
-  /* Tap zones */
-  .sv-prev-zone,.sv-next-zone {
-    position:absolute;top:0;bottom:0;width:40%;z-index:10;cursor:pointer;
+  /* ── Tap zones ── */
+  .sv-tap-left, .sv-tap-right {
+    position: absolute; top: 0; bottom: 0; width: 35%;
+    z-index: 15; cursor: pointer;
   }
-  .sv-prev-zone{left:0;} .sv-next-zone{right:0;}
+  .sv-tap-left  { left: 0; }
+  .sv-tap-right { right: 0; }
 
-  /* Footer */
+  /* ── Footer ── */
   .sv-footer {
-    position:absolute;bottom:0;left:0;right:0;
-    display:flex;align-items:center;gap:10px;
-    padding:16px 16px max(20px,env(safe-area-inset-bottom));
-    background:linear-gradient(to top,rgba(0,0,0,.65) 0%,transparent 100%);
-    z-index:5;
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 60px 16px max(20px,env(safe-area-inset-bottom)) 16px;
+    background: linear-gradient(to top, rgba(0,0,0,.7) 0%, transparent 100%);
+    z-index: 20;
+    display: flex; align-items: center; gap: 10px;
   }
-  .sv-views{color:rgba(255,255,255,.85);font-size:13px;display:flex;align-items:center;gap:5px;}
-  .sv-delete{
-    margin-left:auto;background:rgba(237,73,86,.3);
-    border:1px solid rgba(237,73,86,.6);
-    color:#fff;border-radius:20px;padding:6px 16px;
-    font-size:12px;font-weight:700;cursor:pointer;
+  .sv-views-label {
+    color: rgba(255,255,255,.8); font-size: 13px; font-weight: 600;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .sv-del-btn {
+    margin-left: auto;
+    background: rgba(237,73,86,.25); border: 1px solid rgba(237,73,86,.5);
+    color: #fff; border-radius: 20px; padding: 6px 16px;
+    font-size: 12px; font-weight: 700; cursor: pointer;
+  }
+  .sv-mute-btn {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: rgba(0,0,0,.4); border: none; color: #fff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
   }
 
-  /* ── Post-status modal ── */
+  /* ── WhatsApp-style slide transition between users ── */
+  .sv-card.slide-in-right {
+    animation: svSlideIn .25s cubic-bezier(.22,1,.36,1) forwards;
+  }
+  .sv-card.slide-in-left {
+    animation: svSlideInLeft .25s cubic-bezier(.22,1,.36,1) forwards;
+  }
+  @keyframes svSlideInLeft {
+    from { transform: translateX(-100%); opacity:0; }
+    to   { transform: translateX(0); opacity:1; }
+  }
+
+  /* ── Online dot on status bubbles ── */
+  .status-online-dot {
+    position: absolute; bottom: 1px; right: 1px;
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 2px solid var(--white);
+    background: #25d366;
+    animation: onlinePulse 2.5s ease-in-out infinite;
+  }
+  .status-online-dot.away { background: #3b82f6; animation: none; }
+
+  /* ── Online dot on avatars globally ── */
+  .online-dot {
+    width: 11px; height: 11px; border-radius: 50%;
+    background: #25d366;
+    border: 2px solid var(--white);
+    position: absolute; bottom: 0; right: 0;
+    animation: onlinePulse 2.5s ease-in-out infinite;
+  }
+  .online-dot.away { background: #3b82f6; animation: none; }
+  .online-dot.offline { display: none; }
+
+  /* ── Post-status modal ── 
   .post-status-overlay {
     position:fixed;inset:0;z-index:700;
     background:rgba(0,0,0,.55);
@@ -480,29 +600,58 @@
   </div>
 </div>
 
-<!-- ── Status Viewer ───────────────────────────────────────────────── -->
+<!-- ── Status Viewer (WhatsApp / Stories style) ── -->
 <div class="sv-overlay" id="svOverlay">
-  <div class="sv-stage" id="svStage">
-    <div class="sv-progress-row" id="svProgressRow"></div>
-    <div class="sv-header">
-      <div class="sv-av" id="svAvatar"></div>
-      <span class="sv-author-name" id="svAuthorName"></span>
-      <span class="sv-time" id="svTime"></span>
-      <button class="sv-close" onclick="closeSV()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  <div class="sv-card" id="svCard">
+
+    <!-- Progress bars -->
+    <div class="sv-progs" id="svProgs"></div>
+
+    <!-- Top header: user thumbnails + close -->
+    <div class="sv-hdr">
+      <div class="sv-user-strip" id="svUserStrip"></div>
+      <button class="sv-close-btn" onclick="closeSV()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
-    <div class="sv-content" id="svContent">
-      <div class="sv-bg" id="svBg"></div>
-      <div class="sv-text" id="svText"></div>
-      <div class="sv-prev-zone" onclick="svNav(-1)"></div>
-      <div class="sv-next-zone" onclick="svNav(1)"></div>
+
+    <!-- Author row -->
+    <div class="sv-author-row">
+      <div class="sv-author-av" id="svAuthorAv">
+        <div class="sv-online-dot" id="svOnlineDot" style="display:none"></div>
+      </div>
+      <div>
+        <div class="sv-author-name" id="svAuthorName"></div>
+        <div class="sv-author-time" id="svAuthorTime"></div>
+      </div>
+      <button class="sv-mute-btn" id="svMuteBtn" style="margin-left:auto;display:none" onclick="toggleSVMute()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" id="svVolIcon"/></svg>
+      </button>
     </div>
+
+    <!-- Full-screen content -->
+    <div class="sv-media" id="svMedia">
+      <div class="sv-bg-color" id="svBgColor"></div>
+      <!-- image/video injected here -->
+    </div>
+    <div class="sv-text-overlay" id="svTextOverlay" style="display:none"></div>
+
+    <!-- Hold-to-pause indicator -->
+    <div class="sv-hold-indicator" id="svHoldInd">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+    </div>
+
+    <!-- Tap zones -->
+    <div class="sv-tap-left"  id="svTapLeft"></div>
+    <div class="sv-tap-right" id="svTapRight"></div>
+
+    <!-- Footer -->
     <div class="sv-footer">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.8)" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-      <span class="sv-views" id="svViews">0 views</span>
-      <button class="sv-delete" id="svDeleteBtn" style="display:none" onclick="deleteSV()">Delete</button>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.8)" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      <span class="sv-views-label" id="svViews">0 views</span>
+      <button class="sv-del-btn" id="svDelBtn" style="display:none" onclick="svDeleteCurrent()">Delete</button>
     </div>
+
   </div>
 </div>
 
@@ -883,8 +1032,12 @@ function dlDoc(btn, url, filename) {
       const ringClass = allViewed ? 'viewed' : (g.is_mine ? 'mine' : '');
       const bubble = document.createElement('div');
       bubble.className = 'status-bubble';
+      const onlineSt = window._onlineUsers ? window._onlineUsers[String(g.user_id)] : null;
+      const dotHtml = !g.is_mine && onlineSt
+        ? `<div class="status-online-dot${onlineSt==='away'?' away':''}" data-online-uid="${g.user_id}"></div>`
+        : '';
       bubble.innerHTML = `
-        <div class="status-ring-wrap">
+        <div class="status-ring-wrap" style="position:relative">
           <div class="status-ring ${ringClass}">
             <div class="status-ring-gap">
               <div class="status-av">
@@ -894,6 +1047,7 @@ function dlDoc(btn, url, filename) {
               </div>
             </div>
           </div>
+          ${dotHtml}
         </div>
         <span class="status-name">${g.is_mine ? 'My status' : g.username}</span>`;
       bubble.onclick = () => openSV(allGroups.indexOf(g), 0);
@@ -951,22 +1105,34 @@ function dlDoc(btn, url, filename) {
     }
   };
 
-  // ── Status Viewer ────────────────────────────────────────
-  window.openSV = (groupIdx, statusIdx) => {
-    svGroupIdx  = groupIdx;
-    svStatusIdx = statusIdx;
-    const ov = document.getElementById('svOverlay');
-    ov.classList.add('open');
-    // Hard lock scroll on everything
+  // ══════════════════════════════════════════════════════════════
+  // STATUS VIEWER — WhatsApp Stories style
+  // ══════════════════════════════════════════════════════════════
+
+  let svGroupIdx  = 0;
+  let svStatusIdx = 0;
+  let svTimer     = null;
+  let svHoldTimer = null;
+  let svPaused    = false;
+  let svMuted     = true;
+  let svVideo     = null;
+  const DURATION  = 5000;
+
+  window.openSV = (gIdx, sIdx) => {
+    svGroupIdx  = gIdx;
+    svStatusIdx = sIdx;
+    document.getElementById('svOverlay').classList.add('open');
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
     document.body.style.position = 'fixed';
     document.body.style.width = '100%';
-    renderSV();
+    buildUserStrip();
+    renderSV(false);
   };
 
   window.closeSV = () => {
-    clearSVTimer();
+    clearTimeout(svTimer);
+    if (svVideo) { svVideo.pause(); svVideo = null; }
     document.getElementById('svOverlay').classList.remove('open');
     document.documentElement.style.overflow = '';
     document.body.style.overflow = '';
@@ -975,118 +1141,245 @@ function dlDoc(btn, url, filename) {
     loadStatuses();
   };
 
+  // Build the top user thumbnail strip
+  function buildUserStrip() {
+    const strip = document.getElementById('svUserStrip');
+    strip.innerHTML = '';
+    allGroups.forEach((g, i) => {
+      const el = document.createElement('div');
+      el.className = 'sv-user-thumb' + (i === svGroupIdx ? ' active' : '');
+      el.id = 'svThumb-' + i;
+      el.innerHTML = `
+        <div class="sv-uthumb-ring">
+          <div class="sv-uthumb-inner">
+            ${g.avatar ? `<img src="${g.avatar}" alt="">` : g.username[0].toUpperCase()}
+          </div>
+        </div>
+        <span class="sv-uthumb-name">${g.is_mine ? 'You' : g.username}</span>`;
+      el.onclick = () => { svGroupIdx = i; svStatusIdx = 0; buildUserStrip(); renderSV(i > svGroupIdx ? 'right' : 'left'); };
+      strip.appendChild(el);
+    });
+    // Scroll active thumb into view
+    const active = document.getElementById('svThumb-' + svGroupIdx);
+    if (active) active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }
+
   window.svNav = (dir) => {
-    clearSVTimer();
+    clearTimeout(svTimer);
     const group = allGroups[svGroupIdx];
-    const nextIdx = svStatusIdx + dir;
-    if (nextIdx >= 0 && nextIdx < group.statuses.length) {
-      svStatusIdx = nextIdx;
-      renderSV();
+    const nextSIdx = svStatusIdx + dir;
+    if (nextSIdx >= 0 && nextSIdx < group.statuses.length) {
+      svStatusIdx = nextSIdx;
+      renderSV(dir > 0 ? false : false);
     } else if (dir > 0 && svGroupIdx < allGroups.length - 1) {
       svGroupIdx++;
       svStatusIdx = 0;
-      renderSV();
+      document.querySelectorAll('.sv-user-thumb').forEach((t,i) =>
+        t.classList.toggle('active', i === svGroupIdx));
+      const active = document.getElementById('svThumb-' + svGroupIdx);
+      if (active) active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      renderSV('right');
     } else if (dir < 0 && svGroupIdx > 0) {
       svGroupIdx--;
       svStatusIdx = allGroups[svGroupIdx].statuses.length - 1;
-      renderSV();
+      document.querySelectorAll('.sv-user-thumb').forEach((t,i) =>
+        t.classList.toggle('active', i === svGroupIdx));
+      const active = document.getElementById('svThumb-' + svGroupIdx);
+      if (active) active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      renderSV('left');
     } else {
       closeSV();
     }
   };
 
-  function renderSV() {
+  function renderSV(slideDir) {
     const group  = allGroups[svGroupIdx];
     if (!group) { closeSV(); return; }
     const status = group.statuses[svStatusIdx];
     if (!status) { closeSV(); return; }
 
+    const card = document.getElementById('svCard');
+
+    // Slide animation between users
+    if (slideDir === 'right') {
+      card.classList.remove('slide-in-left');
+      card.offsetHeight; // reflow
+      card.classList.add('slide-in-right');
+    } else if (slideDir === 'left') {
+      card.classList.remove('slide-in-right');
+      card.offsetHeight;
+      card.classList.add('slide-in-left');
+    }
+    setTimeout(() => card.classList.remove('slide-in-right','slide-in-left'), 300);
+
     // Mark viewed
     if (!status.i_viewed) {
       fetch(`/status/${status.id}/view`, { method: 'POST' });
       status.i_viewed = true;
-      // Update ring colour
-      if (group.all_viewed === false) {
-        const allNowViewed = group.statuses.every(s => s.i_viewed);
-        if (allNowViewed) group.all_viewed = true;
-      }
+      if (group.statuses.every(s => s.i_viewed)) group.all_viewed = true;
     }
 
-    // Progress bar
-    buildProgressBars(group.statuses.length, svStatusIdx);
+    // ── Progress bars ──
+    const progsEl = document.getElementById('svProgs');
+    progsEl.innerHTML = '';
+    group.statuses.forEach((_, i) => {
+      const seg  = document.createElement('div');
+      seg.className = 'sv-pseg';
+      const fill = document.createElement('div');
+      fill.className = 'sv-pfill';
+      fill.id = 'svFill-' + i;
+      if (i < svStatusIdx) fill.style.width = '100%';
+      seg.appendChild(fill);
+      progsEl.appendChild(seg);
+    });
 
-    // Header
-    const av = document.getElementById('svAvatar');
-    av.innerHTML = group.avatar
-      ? `<img src="${group.avatar}" alt="">`
-      : group.username[0].toUpperCase();
-    document.getElementById('svAuthorName').textContent = group.username;
-    document.getElementById('svTime').textContent = timeAgo(status.created_at);
-
-    // Content
-    const bg   = document.getElementById('svBg');
-    const text = document.getElementById('svText');
-    bg.style.background = status.bg_color || '#2e3192';
-    bg.innerHTML = '';
-    if (status.media_path) {
-      if (status.media_type === 'video') {
-        bg.innerHTML = `<video src="${status.media_path}" style="width:100%;height:100%;object-fit:cover" autoplay muted loop playsinline></video>`;
-      } else {
-        bg.innerHTML = `<img src="${status.media_path}" style="width:100%;height:100%;object-fit:cover">`;
-      }
+    // ── Author row ──
+    const av = document.getElementById('svAuthorAv');
+    // Remove old content except the dot
+    const dot = document.getElementById('svOnlineDot');
+    av.innerHTML = '';
+    av.appendChild(dot);
+    if (group.avatar) {
+      const img = document.createElement('img');
+      img.src = group.avatar; img.alt = '';
+      img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%';
+      av.insertBefore(img, dot);
+    } else {
+      av.insertBefore(document.createTextNode(group.username[0].toUpperCase()), dot);
     }
-    text.textContent = status.text;
-    text.style.display = status.text ? 'block' : 'none';
+    document.getElementById('svAuthorName').textContent = group.is_mine ? 'Your status' : group.username;
+    document.getElementById('svAuthorTime').textContent = timeAgo(status.created_at);
 
-    // Footer
-    document.getElementById('svViews').textContent = `${status.view_count} view${status.view_count !== 1 ? 's' : ''}`;
-    const delBtn = document.getElementById('svDeleteBtn');
-    delBtn.style.display = (status.is_mine) ? 'block' : 'none';
+    // Online dot — show green for author
+    dot.style.display = 'block';
+
+    // ── Content ──
+    const media = document.getElementById('svMedia');
+    const bgCol = document.getElementById('svBgColor');
+    const txtEl = document.getElementById('svTextOverlay');
+
+    // Stop previous video
+    if (svVideo) { svVideo.pause(); svVideo = null; }
+
+    // Remove old media elements (keep bgColor)
+    Array.from(media.children).forEach(c => {
+      if (c.id !== 'svBgColor') c.remove();
+    });
+
+    bgCol.style.background = status.bg_color || '#1a1a2e';
+
+    if (status.media_path && status.media_type === 'video') {
+      const vid = document.createElement('video');
+      vid.src = status.media_path;
+      vid.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover';
+      vid.autoplay = true; vid.muted = svMuted; vid.loop = true; vid.playsInline = true;
+      media.appendChild(vid);
+      svVideo = vid;
+      document.getElementById('svMuteBtn').style.display = 'flex';
+    } else if (status.media_path && status.media_type === 'image') {
+      const img = document.createElement('img');
+      img.src = status.media_path;
+      img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover';
+      media.appendChild(img);
+      document.getElementById('svMuteBtn').style.display = 'none';
+    } else {
+      document.getElementById('svMuteBtn').style.display = 'none';
+    }
+
+    txtEl.textContent = status.text || '';
+    txtEl.style.display = status.text ? 'block' : 'none';
+
+    // ── Footer ──
+    document.getElementById('svViews').textContent =
+      status.view_count + ' view' + (status.view_count !== 1 ? 's' : '');
+    const delBtn = document.getElementById('svDelBtn');
+    delBtn.style.display = status.is_mine ? 'block' : 'none';
     delBtn.dataset.sid = status.id;
 
-    // Auto-advance
+    // ── Start progress timer ──
     startSVTimer();
   }
 
-  function buildProgressBars(total, current) {
-    const row = document.getElementById('svProgressRow');
-    row.innerHTML = '';
-    for (let i = 0; i < total; i++) {
-      const seg  = document.createElement('div');
-      seg.className = 'sv-prog-seg';
-      const fill = document.createElement('div');
-      fill.className = 'sv-prog-fill';
-      if (i < current) fill.style.width = '100%';
-      seg.appendChild(fill);
-      row.appendChild(seg);
-    }
-  }
-
   function startSVTimer() {
-    clearSVTimer();
-    const fills = document.querySelectorAll('.sv-prog-fill');
-    const fill  = fills[svStatusIdx];
+    clearTimeout(svTimer);
+    const fill = document.getElementById('svFill-' + svStatusIdx);
     if (!fill) return;
     fill.style.transition = `width ${DURATION}ms linear`;
     fill.style.width = '100%';
-    svTimer = setTimeout(() => svNav(1), DURATION);
+    svTimer = setTimeout(() => { if (!svPaused) svNav(1); }, DURATION);
   }
 
-  function clearSVTimer() {
+  function pauseSV() {
+    if (svPaused) return;
+    svPaused = true;
     clearTimeout(svTimer);
-    // Freeze all fills
-    document.querySelectorAll('.sv-prog-fill').forEach(f => {
-      const w = f.offsetWidth / f.parentElement.offsetWidth * 100;
-      f.style.transition = 'none';
-      f.style.width = w + '%';
+    if (svVideo) svVideo.pause();
+    // Freeze progress bar
+    const fill = document.getElementById('svFill-' + svStatusIdx);
+    if (fill) {
+      const w = fill.offsetWidth / fill.parentElement.offsetWidth * 100;
+      fill.style.transition = 'none';
+      fill.style.width = w + '%';
+    }
+    document.getElementById('svHoldInd').classList.add('show');
+  }
+
+  function resumeSV() {
+    if (!svPaused) return;
+    svPaused = false;
+    if (svVideo) svVideo.play();
+    document.getElementById('svHoldInd').classList.remove('show');
+    // Restart timer for remaining time (approx)
+    const fill = document.getElementById('svFill-' + svStatusIdx);
+    if (fill) {
+      const usedPct = parseFloat(fill.style.width) || 0;
+      const remaining = DURATION * ((100 - usedPct) / 100);
+      fill.style.transition = `width ${remaining}ms linear`;
+      fill.style.width = '100%';
+      svTimer = setTimeout(() => { if (!svPaused) svNav(1); }, remaining);
+    }
+  }
+
+  window.toggleSVMute = () => {
+    svMuted = !svMuted;
+    if (svVideo) svVideo.muted = svMuted;
+    const icon = document.getElementById('svVolIcon');
+    if (svMuted) {
+      icon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>';
+    } else {
+      icon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>';
+    }
+  };
+
+  // Tap zones
+  const tapLeft  = document.getElementById('svTapLeft');
+  const tapRight = document.getElementById('svTapRight');
+
+  // Short tap = navigate, long press = pause
+  function addTapZone(el, dir) {
+    let downTime = 0;
+    el.addEventListener('pointerdown', () => {
+      downTime = Date.now();
+      svHoldTimer = setTimeout(() => pauseSV(), 180);
+    });
+    el.addEventListener('pointerup', () => {
+      clearTimeout(svHoldTimer);
+      if (svPaused) { resumeSV(); return; }
+      const held = Date.now() - downTime;
+      if (held < 250) svNav(dir);
+    });
+    el.addEventListener('pointercancel', () => {
+      clearTimeout(svHoldTimer);
+      resumeSV();
     });
   }
+  if (tapLeft)  addTapZone(tapLeft, -1);
+  if (tapRight) addTapZone(tapRight, 1);
 
-  window.deleteSV = async () => {
-    const sid = document.getElementById('svDeleteBtn').dataset.sid;
+  window.svDeleteCurrent = async () => {
+    const sid = document.getElementById('svDelBtn').dataset.sid;
     if (!confirm('Delete this status?')) return;
     await fetch(`/status/${sid}/delete`, { method: 'POST' });
-    // Remove from local data
     const group = allGroups[svGroupIdx];
     group.statuses.splice(svStatusIdx, 1);
     if (group.statuses.length === 0) {
@@ -1097,8 +1390,27 @@ function dlDoc(btn, url, filename) {
       svStatusIdx = Math.min(svStatusIdx, group.statuses.length - 1);
     }
     if (allGroups.length === 0) { closeSV(); return; }
-    renderSV();
+    buildUserStrip();
+    renderSV(false);
   };
+
+  // Keyboard
+  document.addEventListener('keydown', e => {
+    if (!document.getElementById('svOverlay').classList.contains('open')) return;
+    if (e.key === 'ArrowRight') svNav(1);
+    if (e.key === 'ArrowLeft')  svNav(-1);
+    if (e.key === 'Escape')     closeSV();
+    if (e.key === ' ') { svPaused ? resumeSV() : pauseSV(); }
+  });
+
+  // Swipe
+  let _svTouchX = 0;
+  document.getElementById('svOverlay').addEventListener('touchstart',
+    e => { _svTouchX = e.touches[0].clientX; }, { passive: true });
+  document.getElementById('svOverlay').addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - _svTouchX;
+    if (Math.abs(dx) > 60) svNav(dx < 0 ? 1 : -1);
+  });
 
   // ── Helpers ──────────────────────────────────────────────
   function timeAgo(dt) {
