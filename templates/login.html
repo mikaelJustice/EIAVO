@@ -64,11 +64,34 @@
 
     /* Content */
     .hero-inner{position:relative;z-index:2;max-width:460px;width:100%}
-    .hero-logo{margin-bottom:40px}
-    .hero-logo img{height:68px;width:auto;filter:brightness(0) invert(1) drop-shadow(0 2px 12px rgba(0,0,0,.3))}
+    .hero-logo{margin-bottom:40px;display:flex;align-items:center;gap:14px}
+    .hero-logo-mark{
+      width:64px;height:64px;flex-shrink:0;
+      background:rgba(255,255,255,.15);
+      border-radius:14px;
+      backdrop-filter:blur(8px);
+      border:1.5px solid rgba(255,255,255,.25);
+      display:flex;align-items:center;justify-content:center;
+      overflow:hidden;padding:4px;
+    }
+    .hero-logo-mark img{
+      width:100%;height:100%;object-fit:contain;
+      filter:brightness(0) invert(1);
+    }
+    .hero-logo-text{
+      font-family:'Inter',sans-serif;
+      font-size:22px;font-weight:800;
+      color:#fff;letter-spacing:-.3px;
+      text-shadow:0 2px 8px rgba(0,0,0,.3);
+    }
+    .hero-logo-text span{
+      display:block;font-size:12px;font-weight:500;
+      color:rgba(255,255,255,.65);margin-top:2px;
+      letter-spacing:.02em;
+    }
     .hero-headline{
-      font-family:'Syne',sans-serif;font-size:52px;font-weight:900;
-      color:#fff;line-height:1.05;letter-spacing:-2px;margin-bottom:18px;
+      font-family:'Inter',sans-serif;font-size:52px;font-weight:800;
+      color:#fff;line-height:1.1;letter-spacing:-.5px;margin-bottom:18px;
     }
     .hero-headline .green{
       color:var(--green-l);
@@ -108,12 +131,23 @@
       background:linear-gradient(90deg,var(--navy) 0%,var(--green) 100%);
     }
 
-    .panel-logo{margin-bottom:32px}
-    .panel-logo img{height:56px;width:auto}
+    .panel-logo{
+      margin-bottom:32px;
+      display:flex;align-items:center;justify-content:center;
+    }
+    .panel-logo img{
+      height:72px;width:72px;
+      object-fit:contain;
+      border-radius:16px;
+      background:#fff;
+      padding:6px;
+      box-shadow:0 2px 12px rgba(46,49,146,.12);
+      mix-blend-mode:multiply;
+    }
 
     .panel-title{
-      font-family:'Syne',sans-serif;font-size:30px;font-weight:800;
-      letter-spacing:-.6px;margin-bottom:4px;text-align:center;color:var(--ink);
+      font-family:'Inter',sans-serif;font-size:30px;font-weight:800;
+      letter-spacing:-.3px;margin-bottom:4px;text-align:center;color:var(--ink);
     }
     .panel-sub{font-size:14px;color:var(--ink2);margin-bottom:32px;text-align:center}
 
@@ -177,7 +211,13 @@
 
   <div class="hero-inner">
     <div class="hero-logo">
-      <img src="/static/img/eia-logo.png" alt="EIA">
+      <div class="hero-logo-mark">
+        <img src="/static/img/eia-logo.png" alt="EIA">
+      </div>
+      <div class="hero-logo-text">
+        EIA Voice
+        <span>Empower International Academy</span>
+      </div>
     </div>
     <div class="hero-headline">Your voice,<br><span class="green">amplified.</span></div>
     <p class="hero-sub">Empower International Academy's platform for free, safe, and meaningful expression across your school community.</p>
@@ -213,7 +253,8 @@
 
 <div class="panel">
   <div class="panel-logo">
-    <img src="/static/img/eia-logo.png" alt="Empower International Academy">
+    <img src="/static/img/eia-logo.png" alt="Empower International Academy"
+         style="mix-blend-mode:multiply;background:transparent;">
   </div>
   <div class="panel-title">Welcome back</div>
   <p class="panel-sub">Sign in to your EIA Voice account</p>
