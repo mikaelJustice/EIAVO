@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+{% block title %}Status{% endblock %}
+{% block extra_head %}
+<style>
+.sw-wrap { max-width: 600px; margin: 0 auto; }
+/* My status card */
+.sw-my-card {
+  background: var(--white); border: 1.5px solid var(--border);
+  border-radius: var(--r); padding: 16px 18px;
+  display: flex; align-items: center; gap: 14px;
+  margin-bottom: 8px; cursor: pointer;
+  transition: box-shadow .12s;
+}
+.sw-my-card:hover { box-shadow: var(--shadow); }
+.sw-add-av {
+  width: 54px; height: 54px; border-radius: 50%; flex-shrink: 0;
+  position: relative;
+}
+.sw-add-av .av { width: 54px; height: 54px; font-size: 20px; }
+.sw-add-badge {
+  position: absolute; bottom: -2px; right: -2px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--green); color: #fff; border: 2.5px solid var(--white);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; line-height: 1;
+}
+.sw-card-info h3 { font-size: 15px; font-weight: 700; }
+.sw-card-info p  { font-size: 12px; color: var(--ink2); margin-top: 2px; }
+
+/* Section heading */
+.sw-section-hd {
+  font-size: 12px; font-weight: 700; color: var(--ink3);
+  text-transform: uppercase; letter-spacing: .08em;
+  padding: 16px 4px 8px;
+}
+
+/* Status list items */
+.sw-item {
+  background: var(--white); border: 1.5px solid var(--border);
+  border-radius: var(--r); padding: 14px 16px;
+  display: flex; align-items: center; gap: 14px;
+  margin-bottom: 6px; cursor: pointer;
+  transition: box-shadow .12s;
+}
+.sw-item:hover { box-shadow: var(--shadow); }
+.sw-item-ring {
+  width: 54px; height: 54px; border-radius: 50%; padding: 3px;
+  flex-shrink: 0;
+  background: linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);
+}
+.sw-item-ring.viewed { background: #ccc; }
+.sw-item-ring.mine {
+  background: linear-gradient(135deg, var(--navy), var(--green-d));
+}
+.sw-ring-inner {
+  width: 100%; height: 100%; border-radius: 50%;
+  background: var(--navy); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 20px;
+  overflow: hidden; border: 2.5px solid var(--white);
+}
+.sw-ring-inner img { width:100%;height:100%;object-fit:cover; }
+.sw-item-info { flex: 1; min-width: 0; }
+.sw-item-name { font-size: 15px; font-weight: 700; }
+.sw-item-sub  { font-size: 12px; color: var(--ink2); margin-top: 2px; }
+.sw-item-previews {
+  display: flex; gap: 4px;
+}
+.sw-item-preview-thumb {
+  width: 36px; height: 36px; border-radius: 6px;
+  overflow: hidden; flex-shrink: 0; border: 1.5px solid var(--border);
+}
+.sw-item-preview-thumb img, .sw-item-preview-thumb video {
+  width:100%;height:100%;object-fit:cover;display:block;
+}
+.sw-color-thumb {
+  width: 36px; height: 36px; border-radius: 6px;
+  flex-shrink: 0;
+}
+
+/* Empty */
+.sw-empty { text-align: center; padding: 48px 16px; color: var(--ink3); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sw-wrap">
+
+  <!-- My status -->
+  <div class="sw-section-hd">My Status</div>
+  {% if my_statuses %}
+  <div class="sw-item" onclick="openStatusWall(0, true)">
+    <div class="sw-item-ring mine">
+      <div class="sw-ring-inner">
+        {% if cu.avatar %}<img src="{{ url_for('serve_media', filename=cu.avatar) }}" alt="">
+        {% else %}{{ cu.username[0].upper() }}{% endif %}
+      </div>
+    </div>
+    <div class="sw-item-info">
+      <div class="sw-item-name">My status</div>
+      <div class="sw-item-sub">{{ my_statuses|length }} update{{ 's' if my_statuses|length != 1 }} · Tap to view</div>
+    </div>
+    <div class="sw-item-previews">
+      {% for s in my_statuses[:3] %}
+      <div class="sw-color-thumb" style="background:{{ s.bg_color or '#2e3192' }};border-radius:6px;border:1.5px solid var(--border)"></div>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <!-- No status yet -->
+  {% endif %}
+
+  <!-- Add status button -->
+  <div class="sw-my-card" onclick="document.getElementById('swPostModal').classList.add('open')">
+    <div class="sw-add-av">
+      <div class="av av-md">
+        {% if cu.avatar %}<img src="{{ url_for('serve_media', filename=cu.avatar) }}" alt="">
+        {% else %}{{ cu.username[0].upper() }}{% endif %}
+      </div>
+      <div class="sw-add-badge">+</div>
+    </div>
+    <div class="sw-card-info">
+      <h3>Add to my status</h3>
+      <p>Text, photo or video — lasts 24 hours</p>
+    </div>
+  </div>
+
+  <!-- Recent updates -->
+  {% if groups %}
+  <div class="sw-section-hd">Recent Updates</div>
+  {% for g in groups %}
+  {% if not g.is_mine %}
+  <div class="sw-item" onclick="openStatusWall({{ loop.index0 }}, false)" data-group-idx="{{ loop.index0 }}">
+    <div class="sw-item-ring {{ 'viewed' if g.all_viewed else '' }}">
+      <div class="sw-ring-inner">
+        {% if g.avatar %}<img src="{{ url_for('serve_media', filename=g.avatar) }}" alt="">
+        {% else %}{{ g.username[0].upper() }}{% endif %}
+      </div>
+    </div>
+    <div class="sw-item-info">
+      <div class="sw-item-name">{{ g.username }}</div>
+      <div class="sw-item-sub">
+        {% if g.all_viewed %}Viewed{% else %}<strong style="color:var(--green-d)">New</strong>{% endif %}
+        · {{ g.statuses|length }} update{{ 's' if g.statuses|length != 1 }}
+      </div>
+    </div>
+    <div class="sw-item-previews">
+      {% for s in g.statuses[:3] %}
+      <div class="sw-color-thumb" style="background:{{ s.bg_color or '#2e3192' }};border-radius:6px;border:1.5px solid var(--border)"></div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+  {% else %}
+  <div class="sw-empty">
+    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="margin:0 auto 12px;display:block;opacity:.25"><circle cx="12" cy="8" r="5"/><path d="M3 21a9 9 0 0118 0"/></svg>
+    <p>No status updates yet</p>
+    <p style="font-size:12px;margin-top:4px">Follow people to see their statuses here</p>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Post status modal (same as on feed) -->
+<div class="post-status-overlay" id="swPostModal">
+  <div class="post-status-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h3 style="font-size:16px;font-weight:800">Post a Status</h3>
+      <button onclick="document.getElementById('swPostModal').classList.remove('open')"
+              style="background:none;border:none;cursor:pointer;color:var(--ink3)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="POST" action="{{ url_for('status_post') }}" enctype="multipart/form-data">
+      <div id="swPreview" style="width:100%;height:140px;border-radius:12px;background:#2e3192;display:flex;align-items:center;justify-content:center;margin-bottom:14px;overflow:hidden;position:relative">
+        <span id="swPreviewText" style="color:#fff;font-size:18px;font-weight:700;text-align:center;padding:16px;text-shadow:0 2px 6px rgba(0,0,0,.3)">What's on your mind?</span>
+        <img id="swPreviewImg" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover" src="" alt="">
+        <video id="swPreviewVid" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover" muted playsinline loop></video>
+      </div>
+      <div class="field" style="margin-bottom:10px">
+        <textarea name="text" placeholder="Type your status…" rows="2" maxlength="200"
+                  style="resize:none;font-size:15px"
+                  oninput="document.getElementById('swPreviewText').textContent=this.value||'What\\'s on your mind?'"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px" id="swSwatches">
+        {% for c in ['#2e3192','#1a1a2e','#166534','#7b1fa2','#c62828','#e65100','#0369a1','#111827'] %}
+        <div style="width:28px;height:28px;border-radius:50%;background:{{ c }};cursor:pointer;border:2px solid transparent;transition:transform .1s"
+             onclick="swPickColor(this,'{{ c }}')"
+             data-color="{{ c }}"></div>
+        {% endfor %}
+      </div>
+      <input type="hidden" name="bg_color" id="swBgColor" value="#2e3192">
+      <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--navy);margin-bottom:14px;display:block">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        Add photo / video
+        <input type="file" name="media" accept="image/*,video/*" style="display:none"
+               onchange="swPreviewMedia(this)">
+      </label>
+      <div style="display:flex;gap:10px">
+        <button type="submit" class="btn btn-primary" style="flex:1">Post Status</button>
+        <button type="button" onclick="document.getElementById('swPostModal').classList.remove('open')" class="btn btn-outline">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Status viewer overlay (reuse from feed) -->
+<div class="sv-overlay" id="svOverlay">
+  <div class="sv-card" id="svCard">
+    <div class="sv-progs" id="svProgs"></div>
+    <div class="sv-hdr">
+      <div class="sv-user-strip" id="svUserStrip"></div>
+      <button class="sv-close-btn" onclick="closeSV()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="sv-author-row">
+      <div class="sv-author-av" id="svAuthorAv">
+        <div class="sv-online-dot" id="svOnlineDot" style="display:none"></div>
+      </div>
+      <div>
+        <div class="sv-author-name" id="svAuthorName"></div>
+        <div class="sv-author-time" id="svAuthorTime"></div>
+      </div>
+    </div>
+    <div class="sv-media" id="svMedia">
+      <div class="sv-bg-color" id="svBgColor"></div>
+    </div>
+    <div class="sv-text-overlay" id="svTextOverlay" style="display:none"></div>
+    <div class="sv-hold-indicator" id="svHoldInd">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+    </div>
+    <div class="sv-tap-left" id="svTapLeft"></div>
+    <div class="sv-tap-right" id="svTapRight"></div>
+    <div class="sv-footer">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.8)" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      <span class="sv-views-label" id="svViews">0 views</span>
+      <button class="sv-del-btn" id="svDelBtn" style="display:none" onclick="svDeleteCurrent()">Delete</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Groups data passed from server
+const allGroups = {{ groups | tojson }};
+
+function openStatusWall(idx, isMine) {
+  window.openSV(idx, 0);
+}
+
+function swPickColor(el, color) {
+  document.querySelectorAll('#swSwatches div').forEach(d => d.style.borderColor='transparent');
+  el.style.borderColor = '#333';
+  el.style.transform = 'scale(1.2)';
+  document.getElementById('swBgColor').value = color;
+  document.getElementById('swPreview').style.background = color;
+}
+function swPreviewMedia(inp) {
+  const file = inp.files[0]; if(!file) return;
+  const url = URL.createObjectURL(file);
+  const isVid = file.type.startsWith('video/');
+  const img = document.getElementById('swPreviewImg');
+  const vid = document.getElementById('swPreviewVid');
+  document.getElementById('swPreviewText').style.display = 'none';
+  if(isVid){ img.style.display='none'; vid.src=url; vid.style.display='block'; vid.play(); }
+  else     { vid.style.display='none'; img.src=url; img.style.display='block'; }
+}
+
+document.getElementById('swPostModal').addEventListener('click', e => {
+  if(e.target === e.currentTarget) e.currentTarget.classList.remove('open');
+});
+
+// Inline status viewer JS (same logic as feed page)
+let svGroupIdx=0,svStatusIdx=0,svTimer=null,svHoldTimer=null,svPaused=false,svVideo=null;
+const DURATION=5000;
+
+window.openSV = (gi,si) => {
+  svGroupIdx=gi; svStatusIdx=si;
+  document.getElementById('svOverlay').classList.add('open');
+  document.body.style.overflow='hidden';
+  buildUserStrip(); renderSV(false);
+};
+window.closeSV = () => {
+  clearTimeout(svTimer);
+  if(svVideo){svVideo.pause();svVideo=null;}
+  document.getElementById('svOverlay').classList.remove('open');
+  document.body.style.overflow='';
+};
+function buildUserStrip(){
+  const strip=document.getElementById('svUserStrip');
+  strip.innerHTML='';
+  allGroups.forEach((g,i)=>{
+    const el=document.createElement('div');
+    el.className='sv-user-thumb'+(i===svGroupIdx?' active':'');
+    el.innerHTML=`<div class="sv-uthumb-ring"><div class="sv-uthumb-inner">${g.avatar?`<img src="${g.avatar}" alt="">`:g.username[0].toUpperCase()}</div></div><span class="sv-uthumb-name">${g.is_mine?'You':g.username}</span>`;
+    el.onclick=()=>{svGroupIdx=i;svStatusIdx=0;buildUserStrip();renderSV(false);};
+    strip.appendChild(el);
+  });
+  document.getElementById('svThumb-'+svGroupIdx)?.scrollIntoView({inline:'center',block:'nearest'});
+}
+window.svNav=(dir)=>{
+  clearTimeout(svTimer);
+  const g=allGroups[svGroupIdx];
+  const ni=svStatusIdx+dir;
+  if(ni>=0&&ni<g.statuses.length){svStatusIdx=ni;renderSV(false);}
+  else if(dir>0&&svGroupIdx<allGroups.length-1){svGroupIdx++;svStatusIdx=0;document.querySelectorAll('.sv-user-thumb').forEach((t,i)=>t.classList.toggle('active',i===svGroupIdx));renderSV('right');}
+  else if(dir<0&&svGroupIdx>0){svGroupIdx--;svStatusIdx=allGroups[svGroupIdx].statuses.length-1;document.querySelectorAll('.sv-user-thumb').forEach((t,i)=>t.classList.toggle('active',i===svGroupIdx));renderSV('left');}
+  else closeSV();
+};
+function renderSV(slideDir){
+  const group=allGroups[svGroupIdx];if(!group){closeSV();return;}
+  const status=group.statuses[svStatusIdx];if(!status){closeSV();return;}
+  if(!status.i_viewed){fetch(`/status/${status.id}/view`,{method:'POST'});status.i_viewed=true;}
+  const progsEl=document.getElementById('svProgs');progsEl.innerHTML='';
+  group.statuses.forEach((_,i)=>{const seg=document.createElement('div');seg.className='sv-pseg';const fill=document.createElement('div');fill.className='sv-pfill';fill.id='svFill-'+i;if(i<svStatusIdx)fill.style.width='100%';seg.appendChild(fill);progsEl.appendChild(seg);});
+  const av=document.getElementById('svAuthorAv');const dot=document.getElementById('svOnlineDot');av.innerHTML='';av.appendChild(dot);
+  if(group.avatar){const img=document.createElement('img');img.src=group.avatar;img.style.cssText='position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%';av.insertBefore(img,dot);}
+  else av.insertBefore(document.createTextNode(group.username[0].toUpperCase()),dot);
+  document.getElementById('svAuthorName').textContent=group.is_mine?'Your status':group.username;
+  const diff=(Date.now()-new Date(status.created_at).getTime())/1000;
+  document.getElementById('svAuthorTime').textContent=diff<60?'just now':diff<3600?Math.floor(diff/60)+'m ago':Math.floor(diff/3600)+'h ago';
+  if(svVideo){svVideo.pause();svVideo=null;}
+  const media=document.getElementById('svMedia');const bgCol=document.getElementById('svBgColor');const txtEl=document.getElementById('svTextOverlay');
+  Array.from(media.children).forEach(c=>{if(c.id!=='svBgColor')c.remove();});
+  bgCol.style.background=status.bg_color||'#1a1a2e';
+  if(status.media_path&&status.media_type==='video'){const vid=document.createElement('video');vid.src=status.media_path;vid.style.cssText='position:absolute;inset:0;width:100%;height:100%;object-fit:cover';vid.autoplay=true;vid.muted=true;vid.loop=true;vid.playsInline=true;media.appendChild(vid);svVideo=vid;}
+  else if(status.media_path){const img=document.createElement('img');img.src=status.media_path;img.style.cssText='position:absolute;inset:0;width:100%;height:100%;object-fit:cover';media.appendChild(img);}
+  txtEl.textContent=status.text||'';txtEl.style.display=status.text?'block':'none';
+  document.getElementById('svViews').textContent=status.view_count+' view'+(status.view_count!==1?'s':'');
+  const del=document.getElementById('svDelBtn');del.style.display=status.is_mine?'block':'none';del.dataset.sid=status.id;
+  startSVTimer();
+}
+function startSVTimer(){clearTimeout(svTimer);const fill=document.getElementById('svFill-'+svStatusIdx);if(!fill)return;fill.style.transition=`width ${DURATION}ms linear`;fill.style.width='100%';svTimer=setTimeout(()=>{if(!svPaused)svNav(1);},DURATION);}
+function pauseSV(){if(svPaused)return;svPaused=true;clearTimeout(svTimer);if(svVideo)svVideo.pause();const fill=document.getElementById('svFill-'+svStatusIdx);if(fill){const w=fill.offsetWidth/fill.parentElement.offsetWidth*100;fill.style.transition='none';fill.style.width=w+'%';}document.getElementById('svHoldInd').classList.add('show');}
+function resumeSV(){if(!svPaused)return;svPaused=false;if(svVideo)svVideo.play();document.getElementById('svHoldInd').classList.remove('show');const fill=document.getElementById('svFill-'+svStatusIdx);if(fill){const p=parseFloat(fill.style.width)||0;const rem=DURATION*((100-p)/100);fill.style.transition=`width ${rem}ms linear`;fill.style.width='100%';svTimer=setTimeout(()=>{if(!svPaused)svNav(1);},rem);}}
+window.svDeleteCurrent=async()=>{const sid=document.getElementById('svDelBtn').dataset.sid;if(!confirm('Delete?'))return;await fetch(`/status/${sid}/delete`,{method:'POST'});const g=allGroups[svGroupIdx];g.statuses.splice(svStatusIdx,1);if(!g.statuses.length){allGroups.splice(svGroupIdx,1);svGroupIdx=Math.max(0,svGroupIdx-1);svStatusIdx=0;}else svStatusIdx=Math.min(svStatusIdx,g.statuses.length-1);if(!allGroups.length){closeSV();return;}buildUserStrip();renderSV(false);};
+// Tap zones
+function addTapZone(el,dir){let t=0;el.addEventListener('pointerdown',()=>{t=Date.now();svHoldTimer=setTimeout(()=>pauseSV(),180);});el.addEventListener('pointerup',()=>{clearTimeout(svHoldTimer);if(svPaused){resumeSV();return;}if(Date.now()-t<250)svNav(dir);});el.addEventListener('pointercancel',()=>{clearTimeout(svHoldTimer);resumeSV();});}
+const tl=document.getElementById('svTapLeft'),tr=document.getElementById('svTapRight');
+if(tl)addTapZone(tl,-1);if(tr)addTapZone(tr,1);
+document.addEventListener('keydown',e=>{if(!document.getElementById('svOverlay').classList.contains('open'))return;if(e.key==='ArrowRight')svNav(1);if(e.key==='ArrowLeft')svNav(-1);if(e.key==='Escape')closeSV();});
+let _tx=0;document.getElementById('svOverlay').addEventListener('touchstart',e=>{_tx=e.touches[0].clientX;},{passive:true});
+document.getElementById('svOverlay').addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-_tx;if(Math.abs(dx)>60)svNav(dx<0?1:-1);});
+</script>
+{% endblock %}

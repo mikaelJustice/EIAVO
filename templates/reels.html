@@ -140,12 +140,13 @@
     display: block;
   }
 
-  /* Tap overlay */
+  /* Tap overlay - MUST be below action buttons */
   .reel-tap-overlay {
     position: absolute;
     inset: 0;
     cursor: pointer;
     z-index: 2;
+    /* Only covers the video area, not the right action column */
   }
 
   /* Play/pause flash */
@@ -261,6 +262,8 @@
     align-items: center;
     gap: 6px;
     flex-shrink: 0;
+    position: relative;
+    z-index: 10; /* Above tap overlay */
   }
 
   .reel-action-btn {
@@ -272,23 +275,28 @@
     color: #fff;
     background: none;
     border: none;
-    padding: 0;
+    padding: 8px 4px;
     min-width: 52px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    position: relative;
+    z-index: 10;
   }
 
   .reel-action-icon {
-    width: 48px;
-    height: 48px;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
     background: rgba(255,255,255,.12);
     backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background .15s, transform .12s;
+    transition: background .1s, transform .08s;
+    touch-action: manipulation;
   }
-  .reel-action-icon:hover  { background: rgba(255,255,255,.22); }
-  .reel-action-icon:active { transform: scale(.9); }
+  .reel-action-icon:hover  { background: rgba(255,255,255,.25); }
+  .reel-action-icon:active { transform: scale(.88); background: rgba(255,255,255,.3); }
 
   .reel-action-label {
     font-size: 12px;
@@ -755,36 +763,66 @@
   });
 
   // ── Like / Dislike ────────────────────────────────────────────────────────
-  window.likeReel = async function(btn, type) {
-    const pid   = btn.dataset.react;
-    const emoji = btn.dataset.emoji;
-    const res   = await fetch(`/post/${pid}/react`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emoji })
-    });
-    const d = await res.json();
-    const isOn = d.liked;
-    btn.classList.toggle(type === 'like' ? 'loved' : 'disliked', isOn);
-    const svg = btn.querySelector('svg');
+  window.likeReel = function(btn, type) {
+    // ── Optimistic update: respond instantly, send request in background ──
+    const pid     = btn.dataset.react;
+    const emoji   = btn.dataset.emoji;
+    const cls     = type === 'like' ? 'loved' : 'disliked';
+    const wasOn   = btn.classList.contains(cls);
+    const isOn    = !wasOn;
+    const svg     = btn.querySelector('svg');
+    const lbl     = btn.querySelector('.reel-action-label');
+
+    // Instant visual feedback BEFORE server responds
+    btn.classList.toggle(cls, isOn);
     if (type === 'like') {
       svg.setAttribute('fill',   isOn ? '#ed4956' : 'none');
       svg.setAttribute('stroke', isOn ? '#ed4956' : 'white');
-      btn.querySelector('.reel-action-label').textContent = d.count > 0 ? d.count : '';
+      // Bump count optimistically
+      if (lbl) {
+        const cur = parseInt(lbl.textContent) || 0;
+        lbl.textContent = isOn ? (cur + 1) || '' : (cur - 1) > 0 ? (cur - 1) : '';
+      }
     } else {
       svg.setAttribute('fill',   isOn ? '#64a0ff' : 'none');
       svg.setAttribute('stroke', isOn ? '#64a0ff' : 'white');
     }
+
+    // Fire-and-forget server request — do NOT await
+    fetch(`/post/${pid}/react`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emoji })
+    }).then(r => r.json()).then(d => {
+      // Reconcile with server truth
+      btn.classList.toggle(cls, d.liked);
+      if (type === 'like' && lbl) lbl.textContent = d.count > 0 ? d.count : '';
+    }).catch(() => {
+      // Revert on error
+      btn.classList.toggle(cls, wasOn);
+    });
   };
 
-  // ── Follow ────────────────────────────────────────────────────────────────
+  // ── Follow — also optimistic ───────────────────────────────────────────────
   document.querySelectorAll('[data-follow-uid]').forEach(btn => {
-    btn.addEventListener('click', async function() {
-      const uid = this.dataset.followUid;
-      const res = await fetch(`/follow/${uid}`, { method: 'POST' });
-      const d   = await res.json();
-      this.classList.toggle('following', d.following);
-      this.textContent = d.following ? 'Following' : 'Follow';
+    btn.addEventListener('click', function() {
+      const uid   = this.dataset.followUid;
+      const wasFollowing = this.classList.contains('following');
+      // Instant toggle
+      this.classList.toggle('following', !wasFollowing);
+      this.textContent = wasFollowing ? 'Follow' : 'Following';
+      // Background request
+      fetch(`/follow/${uid}`, { method: 'POST' })
+        .then(r => r.json())
+        .then(d => {
+          this.classList.toggle('following', d.following);
+          this.textContent = d.following ? 'Following' : 'Follow';
+        })
+        .catch(() => {
+          // Revert
+          this.classList.toggle('following', wasFollowing);
+          this.textContent = wasFollowing ? 'Following' : 'Follow';
+        });
     });
   });
 

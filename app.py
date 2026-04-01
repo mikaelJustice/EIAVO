@@ -2832,6 +2832,18 @@ def _active_statuses_for(viewer_id):
     return list(groups.values())
 
 
+@app.route("/status-wall")
+@login_required
+def status_wall():
+    user   = current_user()
+    groups = _active_statuses_for(user["id"])
+    my_statuses = query(
+        "SELECT * FROM statuses WHERE user_id=? AND expires_at>? ORDER BY created_at DESC",
+        (user["id"], _now())
+    )
+    return render_template("status_wall.html", groups=groups, my_statuses=my_statuses)
+
+
 @app.route("/status/post", methods=["POST"])
 @login_required
 def status_post():
@@ -2884,6 +2896,19 @@ def status_delete(sid):
     return redirect(url_for("feed"))
 
 
+@app.route("/statuses")
+@login_required
+def statuses_page():
+    user   = current_user()
+    groups = _active_statuses_for(user["id"])
+    # Put my statuses first
+    my_statuses = query(
+        "SELECT * FROM statuses WHERE user_id=? AND expires_at>? ORDER BY created_at DESC",
+        (user["id"], _now())
+    )
+    return render_template("statuses.html", groups=groups, my_statuses=my_statuses)
+
+
 @app.route("/api/statuses")
 @login_required
 def api_statuses():
@@ -2916,6 +2941,25 @@ def api_statuses():
             "is_mine":    g["user_id"] == user["id"],
         })
     return jsonify(out)
+
+
+@app.route("/api/post/<pid>/author")
+@login_required
+@roles_required("super_admin")
+def api_post_author(pid):
+    """Super-admin only: reveal who posted an anonymous post."""
+    from flask import jsonify
+    post = query("SELECT * FROM posts WHERE id=?", (pid,), one=True)
+    if not post:
+        return jsonify({"error": "Not found"}), 404
+    author = query("SELECT id, username, name, role, year_group FROM users WHERE id=?",
+                   (post["author_id"],), one=True)
+    return jsonify({
+        "username":   author["username"],
+        "name":       author["name"],
+        "role":       author["role"],
+        "year_group": author["year_group"] or "",
+    })
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

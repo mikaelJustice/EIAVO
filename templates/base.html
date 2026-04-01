@@ -545,10 +545,13 @@
 {% endif %}
 <nav class="sidebar">
   <div class="sidebar-brand">
-    <img src="{{ url_for('static', filename='img/eia-logo.png') }}" alt="Empower International Academy">
+    <img src="{{ url_for('static', filename='img/eia-logo-transparent.png') }}" alt="Empower International Academy">
   </div>
   <a href="{{ url_for('feed') }}" class="nav-link {% if request.endpoint=='feed' %}active{% endif %}">
     <svg class="ic" width="22" height="22"><use href="#ic-home"/></svg> Home
+  </a>
+  <a href="{{ url_for('statuses_page') }}" class="nav-link {% if request.endpoint=='statuses_page' %}active{% endif %}">
+    <svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Statuses
   </a>
   <a href="{{ url_for('explore') }}" class="nav-link {% if request.endpoint in ('people','explore','global_search') %}active{% endif %}">
     <svg class="ic" width="22" height="22"><use href="#ic-search"/></svg> Explore
@@ -560,6 +563,9 @@
   <a href="{{ url_for('messages') }}" class="nav-link {% if request.endpoint in ('messages','conversation') %}active{% endif %}">
     <svg class="ic" width="22" height="22"><use href="#ic-send"/></svg> Messages
     {% if msg_count %}<span class="nav-badge">{{ msg_count }}</span>{% endif %}
+  </a>
+  <a href="{{ url_for('status_wall') }}" class="nav-link {% if request.endpoint=='status_wall' %}active{% endif %}">
+    <svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="5"/><path d="M3 21a9 9 0 0118 0"/></svg> Status
   </a>
   <a href="{{ url_for('reels') }}" class="nav-link {% if request.endpoint=='reels' %}active{% endif %}">
     <svg class="ic" width="22" height="22"><use href="#ic-reel"/></svg> Reels
@@ -649,6 +655,12 @@
         <div class="mdi"><svg width="18" height="18"><use href="#ic-comment"/></svg></div>
         Shoutouts
       </a>
+      <a href="{{ url_for('statuses_page') }}" class="more-drawer-item" onclick="closeMoreDrawer()">
+        <div class="mdi">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        Statuses
+      </a>
       <a href="{{ url_for('explore') }}" class="more-drawer-item" onclick="closeMoreDrawer()">
         <div class="mdi"><svg width="18" height="18"><use href="#ic-search"/></svg></div>
         Explore
@@ -691,6 +703,10 @@
     <a href="{{ url_for('classes') }}" class="mobile-nav-btn {% if request.endpoint in ('classes','class_detail','assignments','quizzes','attendance','resources') %}active{% endif %}">
       <svg width="22" height="22"><use href="#ic-class"/></svg>
       <span>Classes</span>
+    </a>
+    <a href="{{ url_for('status_wall') }}" class="mobile-nav-btn {% if request.endpoint=='status_wall' %}active{% endif %}">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="5"/><path d="M3 21a9 9 0 0118 0"/></svg>
+      <span>Status</span>
     </a>
     <a href="{{ url_for('messages') }}" class="mobile-nav-btn {% if request.endpoint in ('messages','conversation') %}active{% endif %}">
       <svg width="22" height="22"><use href="#ic-send"/></svg>

@@ -746,10 +746,21 @@
   {% endif %}
 
   <div class="post-header">
-    <div class="av av-md">
+    {% if not p.is_anon %}
+    <a href="{{ url_for('profile', username=p.display) }}" style="text-decoration:none;flex-shrink:0">
+    {% endif %}
+    <div class="av av-md"
+      {% if p.is_anon and cu.role == 'super_admin' %}
+        style="cursor:pointer" title="Tap to reveal who posted this" onclick="revealAnonIdentity('{{ p.id }}')"
+      {% elif p.is_anon %}
+        style="cursor:default"
+      {% else %}
+        style="cursor:pointer" onclick="location.href='{{ url_for('profile', username=p.display) }}'"
+      {% endif %}>
       {% if p.avatar and not p.is_anon %}<img src="{{ url_for('serve_media', filename=p.avatar) }}" alt="">
       {% else %}{{ p.display[0].upper() if p.display else 'A' }}{% endif %}
     </div>
+    {% if not p.is_anon %}</a>{% endif %}
     <div class="post-author-info">
       <div class="post-author-name">
         {% if not p.is_anon %}<a href="{{ url_for('profile', username=p.display) }}" style="color:inherit">{{ p.display }}</a>
@@ -1440,6 +1451,16 @@ function dlDoc(btn, url, filename) {
   });
 
 })();
+
+// Superadmin only: tap anon avatar to reveal poster identity
+window.revealAnonIdentity = async function(pid) {
+  try {
+    const r = await fetch('/api/post/'+pid+'/author');
+    if (!r.ok) { alert('Not authorized'); return; }
+    const d = await r.json();
+    alert('Posted by:\n@'+d.username+'\nName: '+d.name+'\nRole: '+d.role+(d.year_group?'\nYear: '+d.year_group:''));
+  } catch(e) { alert('Error'); }
+};
 </script>
 
 {% endblock %}
