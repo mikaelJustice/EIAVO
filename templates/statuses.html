@@ -103,7 +103,64 @@
 .st-empty { text-align:center; padding:48px 20px; color:var(--ink3); }
 .st-empty svg { opacity:.25; margin-bottom:14px; }
 
-/* Post status modal reused from feed */
+/* Post status modal */
+  .post-status-overlay {
+    position:fixed;inset:0;z-index:700;
+    background:rgba(0,0,0,.55);
+    display:none;align-items:flex-end;justify-content:center;
+  }
+  .post-status-overlay.open{display:flex;}
+  @media(min-width:600px){.post-status-overlay{align-items:center;}}
+  .post-status-box {
+    background:var(--white);
+    border-radius:18px 18px 0 0;
+    width:100%;max-width:480px;
+    padding:20px 20px max(20px,env(safe-area-inset-bottom));
+    max-height:92vh;overflow-y:auto;
+  }
+  @media(min-width:600px){.post-status-box{border-radius:var(--r);margin:16px;}}
+  .color-swatch{width:28px;height:28px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .1s,border-color .1s;flex-shrink:0;}
+  .color-swatch.selected{border-color:var(--ink);transform:scale(1.2);}
+  /* Viewer CSS — imported from base via extra_head is not possible so inline here */
+  .sv-overlay{position:fixed;inset:0;z-index:9900;background:#000;display:none;overflow:hidden;}
+  .sv-overlay.open{display:block;}
+  @keyframes svSlideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+  @keyframes svSlideInLeft{from{transform:translateX(-100%);opacity:0}to{transform:translateX(0);opacity:1}}
+  .sv-card{position:absolute;inset:0;max-width:520px;margin:0 auto;display:flex;flex-direction:column;background:#111;}
+  .sv-card.slide-in-right{animation:svSlideIn .25s cubic-bezier(.22,1,.36,1) forwards;}
+  .sv-card.slide-in-left{animation:svSlideInLeft .25s cubic-bezier(.22,1,.36,1) forwards;}
+  .sv-progs{position:absolute;top:0;left:0;right:0;display:flex;gap:3px;padding:max(10px,env(safe-area-inset-top)) 10px 0;z-index:20;}
+  .sv-pseg{flex:1;height:2.5px;background:rgba(255,255,255,.3);border-radius:2px;overflow:hidden;}
+  .sv-pfill{height:100%;width:0%;background:#fff;}
+  .sv-hdr{position:absolute;top:max(24px,calc(env(safe-area-inset-top)+14px));left:0;right:0;display:flex;align-items:center;gap:10px;padding:6px 12px;z-index:20;}
+  .sv-user-strip{display:flex;gap:6px;align-items:center;overflow-x:auto;flex:1;scrollbar-width:none;}
+  .sv-user-strip::-webkit-scrollbar{display:none;}
+  .sv-user-thumb{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;flex-shrink:0;opacity:.5;transition:opacity .15s;}
+  .sv-user-thumb.active{opacity:1;}
+  .sv-uthumb-ring{width:36px;height:36px;border-radius:50%;padding:2px;background:rgba(255,255,255,.3);}
+  .sv-user-thumb.active .sv-uthumb-ring{background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);}
+  .sv-uthumb-inner{width:100%;height:100%;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;overflow:hidden;border:2px solid #000;}
+  .sv-uthumb-inner img{width:100%;height:100%;object-fit:cover;}
+  .sv-uthumb-name{font-size:9px;font-weight:600;color:rgba(255,255,255,.75);max-width:36px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sv-close-btn{width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.4);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .sv-author-row{position:absolute;top:max(76px,calc(env(safe-area-inset-top)+66px));left:0;right:0;display:flex;align-items:center;gap:10px;padding:0 14px;z-index:20;}
+  .sv-author-av{width:38px;height:38px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;overflow:hidden;flex-shrink:0;border:2px solid rgba(255,255,255,.5);position:relative;}
+  .sv-author-av img{width:100%;height:100%;object-fit:cover;}
+  .sv-author-name{font-size:14px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.5);}
+  .sv-author-time{font-size:11px;color:rgba(255,255,255,.65);margin-top:1px;}
+  .sv-online-dot{width:10px;height:10px;border-radius:50%;background:#25d366;border:2px solid #000;position:absolute;bottom:0;right:0;}
+  .sv-mute-btn{width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.4);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .sv-media{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
+  .sv-media img,.sv-media video{width:100%;height:100%;object-fit:cover;}
+  .sv-bg-color{position:absolute;inset:0;}
+  .sv-text-overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;font-size:26px;font-weight:800;text-align:center;padding:24px 28px;line-height:1.4;text-shadow:0 2px 16px rgba(0,0,0,.6);max-width:400px;word-break:break-word;z-index:5;}
+  .sv-hold-indicator{position:absolute;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;pointer-events:none;background:rgba(0,0,0,.3);}
+  .sv-hold-indicator.show{opacity:1;}
+  .sv-tap-left,.sv-tap-right{position:absolute;top:0;bottom:0;width:35%;z-index:15;cursor:pointer;}
+  .sv-tap-left{left:0;}.sv-tap-right{right:0;}
+  .sv-footer{position:absolute;bottom:0;left:0;right:0;padding:60px 16px max(20px,env(safe-area-inset-bottom)) 16px;background:linear-gradient(to top,rgba(0,0,0,.7) 0%,transparent 100%);z-index:20;display:flex;align-items:center;gap:10px;}
+  .sv-views-label{color:rgba(255,255,255,.8);font-size:13px;font-weight:600;display:flex;align-items:center;gap:5px;}
+  .sv-del-btn{margin-left:auto;background:rgba(237,73,86,.25);border:1px solid rgba(237,73,86,.5);color:#fff;border-radius:20px;padding:6px 16px;font-size:12px;font-weight:700;cursor:pointer;}
 </style>
 {% endblock %}
 
@@ -282,16 +339,15 @@
 
 {% block extra_js %}
 <script>
-// Groups data from server
+// Groups data — URLs already resolved by server
 let allGroups = {{ groups | tojson }};
-
-// Fix avatar URLs
+// Normalise: use avatar_url and media_url fields (set by server)
 allGroups = allGroups.map(g => ({
   ...g,
-  avatar: g.avatar ? '/media/' + g.avatar : '',
-  statuses: g.statuses.map(s => ({
+  avatar: g.avatar_url || g.avatar || '',
+  statuses: (g.statuses || []).map(s => ({
     ...s,
-    media_path: s.media_path ? '/media/' + s.media_path : ''
+    media_path: s.media_url || s.media_path || ''
   }))
 }));
 
@@ -299,11 +355,14 @@ let svGroupIdx = 0, svStatusIdx = 0, svTimer = null, svHoldTimer = null;
 let svPaused = false, svMuted = true, svVideo = null;
 const DURATION = 5000;
 
-// Open my statuses
+// Open my statuses or post modal if none
 window.openMyStatuses = function(){
   const myIdx = allGroups.findIndex(g => g.is_mine);
-  if (myIdx >= 0) openSV(myIdx, 0);
-  else openPostStatus();
+  if (myIdx >= 0 && allGroups[myIdx].statuses.length > 0) {
+    openSV(myIdx, 0);
+  } else {
+    openPostStatus();
+  }
 };
 
 // Open a specific group's statuses

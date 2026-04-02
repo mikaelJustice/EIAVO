@@ -1168,17 +1168,34 @@ def profile(username):
     i_follow  = bool(query("SELECT 1 FROM follows WHERE follower_id=? AND followee_id=?",
                            (viewer["id"], prof["id"]), one=True))
 
-    # Posts visible to viewer
-    # Only show posts the viewer is actually allowed to see
+    # Posts visible on profile
+    # Super admin sees everything; own profile sees everything;
+    # Others only see NON-anonymous posts
     viewer_visible = ROLE_VISIBLE.get(viewer["role"])
-    if viewer_visible is None:  # super_admin sees all
+    if is_super:  # super_admin sees all including anon
         post_rows = query("SELECT * FROM posts WHERE author_id=? ORDER BY created_at DESC", (prof["id"],))
+    elif is_self:  # viewing your own profile — see all your posts
+        if viewer_visible is None:
+            post_rows = query("SELECT * FROM posts WHERE author_id=? ORDER BY created_at DESC", (prof["id"],))
+        else:
+            placeholders = ",".join("?" * len(viewer_visible))
+            post_rows = query(
+                f"SELECT * FROM posts WHERE author_id=? AND recipient IN ({placeholders}) ORDER BY created_at DESC",
+                (prof["id"], *viewer_visible)
+            )
     else:
-        placeholders = ",".join("?" * len(viewer_visible))
-        post_rows = query(
-            f"SELECT * FROM posts WHERE author_id=? AND recipient IN ({placeholders}) ORDER BY created_at DESC",
-            (prof["id"], *viewer_visible)
-        )
+        # Someone else viewing this profile — hide anonymous posts entirely
+        if viewer_visible is None:
+            post_rows = query(
+                "SELECT * FROM posts WHERE author_id=? AND is_anon=0 ORDER BY created_at DESC",
+                (prof["id"],)
+            )
+        else:
+            placeholders = ",".join("?" * len(viewer_visible))
+            post_rows = query(
+                f"SELECT * FROM posts WHERE author_id=? AND is_anon=0 AND recipient IN ({placeholders}) ORDER BY created_at DESC",
+                (prof["id"], *viewer_visible)
+            )
     posts = [serialise_post(r, viewer["id"]) for r in post_rows]
     post_count = len(posts)
 
@@ -2822,14 +2839,31 @@ def _active_statuses_for(viewer_id):
             groups[uid] = {
                 "user_id": uid,
                 "username": r["username"],
-                "avatar": r["avatar"],
+                "avatar": r["avatar"] or "",
                 "statuses": [],
                 "all_viewed": True,
+                "is_mine": uid == viewer_id,
             }
-        groups[uid]["statuses"].append(r)
+        # Convert row to plain dict for JSON serialisation
+        s = {
+            "id":         r["id"],
+            "text":       r["text"] or "",
+            "media_path": r["media_path"] or "",
+            "media_type": r["media_type"] or "text",
+            "bg_color":   r["bg_color"] or "#2e3192",
+            "created_at": r["created_at"],
+            "expires_at": r["expires_at"],
+            "view_count": r["view_count"] or 0,
+            "i_viewed":   bool(r["i_viewed"]),
+            "is_mine":    r["user_id"] == viewer_id,
+        }
+        groups[uid]["statuses"].append(s)
         if not r["i_viewed"]:
             groups[uid]["all_viewed"] = False
-    return list(groups.values())
+    # Put own statuses first
+    result = list(groups.values())
+    result.sort(key=lambda g: (0 if g["is_mine"] else 1))
+    return result
 
 
 @app.route("/status-wall")
@@ -2900,8 +2934,19 @@ def status_delete(sid):
 @login_required
 def statuses_page():
     user   = current_user()
-    groups = _active_statuses_for(user["id"])
-    # Put my statuses first
+    raw_groups = _active_statuses_for(user["id"])
+    # Resolve media URLs for template
+    groups = []
+    for g in raw_groups:
+        g2 = dict(g)
+        g2["avatar_url"] = url_for("serve_media", filename=g["avatar"]) if g.get("avatar") else ""
+        sts = []
+        for s in g["statuses"]:
+            s2 = dict(s)
+            s2["media_url"] = url_for("serve_media", filename=s["media_path"]) if s.get("media_path") else ""
+            sts.append(s2)
+        g2["statuses"] = sts
+        groups.append(g2)
     my_statuses = query(
         "SELECT * FROM statuses WHERE user_id=? AND expires_at>? ORDER BY created_at DESC",
         (user["id"], _now())
@@ -2915,22 +2960,21 @@ def api_statuses():
     from flask import jsonify
     user   = current_user()
     groups = _active_statuses_for(user["id"])
-    # Serialize
     out = []
     for g in groups:
         sts = []
         for s in g["statuses"]:
             sts.append({
-                "id":        s["id"],
-                "text":      s["text"],
+                "id":         s["id"],
+                "text":       s["text"],
                 "media_path": url_for("serve_media", filename=s["media_path"]) if s["media_path"] else "",
                 "media_type": s["media_type"],
-                "bg_color":  s["bg_color"],
+                "bg_color":   s["bg_color"],
                 "created_at": s["created_at"],
                 "expires_at": s["expires_at"],
                 "view_count": s["view_count"],
-                "i_viewed":  bool(s["i_viewed"]),
-                "is_mine":   s["user_id"] == user["id"],
+                "i_viewed":   s["i_viewed"],
+                "is_mine":    s["is_mine"],
             })
         out.append({
             "user_id":    g["user_id"],
@@ -2938,7 +2982,7 @@ def api_statuses():
             "avatar":     url_for("serve_media", filename=g["avatar"]) if g["avatar"] else "",
             "all_viewed": g["all_viewed"],
             "statuses":   sts,
-            "is_mine":    g["user_id"] == user["id"],
+            "is_mine":    g["is_mine"],
         })
     return jsonify(out)
 
