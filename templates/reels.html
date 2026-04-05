@@ -532,7 +532,10 @@
         </div>
         {% if reel.author_id != cu.id %}
         <button class="reel-follow-btn {% if reel.is_following %}following{% endif %}"
-                data-follow-uid="{{ reel.author_id }}">
+                data-follow-uid="{{ reel.author_id }}"
+                onclick="event.stopPropagation();reelFollow(this)"
+                ontouchstart="event.stopPropagation()"
+                style="touch-action:manipulation;-webkit-tap-highlight-color:transparent">
           {{ 'Following' if reel.is_following else 'Follow' }}
         </button>
         {% endif %}
@@ -541,7 +544,9 @@
       <!-- Like -->
       <button class="reel-action-btn {% if reel.user_liked %}loved{% endif %}"
               data-react="{{ reel.id }}" data-emoji="❤️"
-              onclick="likeReel(this, 'like')">
+              onclick="event.stopPropagation();likeReel(this, 'like')"
+              ontouchstart="event.stopPropagation()"
+              style="touch-action:manipulation">
         <div class="reel-action-icon">
           <svg width="26" height="26" viewBox="0 0 24 24"
                fill="{% if reel.user_liked %}#ed4956{% else %}none{% endif %}"
@@ -556,7 +561,9 @@
       <!-- Dislike -->
       <button class="reel-action-btn {% if reel.user_disliked %}disliked{% endif %}"
               data-react="{{ reel.id }}" data-emoji="👎"
-              onclick="likeReel(this, 'dislike')">
+              onclick="event.stopPropagation();likeReel(this, 'dislike')"
+              ontouchstart="event.stopPropagation()"
+              style="touch-action:manipulation">
         <div class="reel-action-icon">
           <svg width="26" height="26" viewBox="0 0 24 24"
                fill="{% if reel.user_disliked %}#64a0ff{% else %}none{% endif %}"
@@ -813,45 +820,55 @@
     });
   };
 
-  // ── Follow — event delegation so it works on ALL reels including scrolled ones ──
-  // Track in-flight requests to prevent double-clicks causing toggle back
-  const _followInFlight = new Set();
+  // ── Follow — direct named function, prevents any interception ──────────────
+  const _followBusy = {};   // uid → true while request in flight
 
-  document.addEventListener('click', function(e) {
-    const btn = e.target.closest('[data-follow-uid]');
-    if (!btn) return;
-
+  window.reelFollow = function(btn) {
     const uid = btn.dataset.followUid;
-    if (!uid) return;
-
-    // Prevent double-tap causing instant unfollow
-    if (_followInFlight.has(uid)) return;
-    _followInFlight.add(uid);
+    if (!uid || _followBusy[uid]) return;
 
     const wasFollowing = btn.classList.contains('following');
 
-    // Optimistic UI
-    btn.classList.toggle('following', !wasFollowing);
-    btn.textContent = wasFollowing ? 'Follow' : 'Following';
-    btn.style.opacity = '0.7';
+    // Lock immediately
+    _followBusy[uid] = true;
+    btn.disabled = true;
 
-    fetch(`/follow/${uid}`, { method: 'POST' })
-      .then(r => r.json())
-      .then(d => {
-        // Trust server truth
-        btn.classList.toggle('following', d.following);
-        btn.textContent = d.following ? 'Following' : 'Follow';
+    // Instant visual
+    if (wasFollowing) {
+      btn.classList.remove('following');
+      btn.textContent = 'Follow';
+    } else {
+      btn.classList.add('following');
+      btn.textContent = 'Following';
+    }
+
+    fetch('/follow/' + uid, { method: 'POST', credentials: 'same-origin' })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        // Apply server truth
+        if (d.following) {
+          btn.classList.add('following');
+          btn.textContent = 'Following';
+        } else {
+          btn.classList.remove('following');
+          btn.textContent = 'Follow';
+        }
       })
-      .catch(() => {
-        // Revert on network error
-        btn.classList.toggle('following', wasFollowing);
-        btn.textContent = wasFollowing ? 'Following' : 'Follow';
+      .catch(function() {
+        // Revert
+        if (wasFollowing) {
+          btn.classList.add('following');
+          btn.textContent = 'Following';
+        } else {
+          btn.classList.remove('following');
+          btn.textContent = 'Follow';
+        }
       })
-      .finally(() => {
-        btn.style.opacity = '';
-        _followInFlight.delete(uid);
+      .finally(function() {
+        btn.disabled = false;
+        _followBusy[uid] = false;
       });
-  });
+  };
 
   // ── Caption expand ────────────────────────────────────────────────────────
   window.toggleCaption = el => el.classList.toggle('expanded');
@@ -1013,8 +1030,8 @@
     let lpFired = false;
 
     const startLP = (e) => {
-      // Don't trigger on taps of buttons/links
-      if (e.target.closest('button,a,.reel-volume-btn,.reel-action-btn')) return;
+      // Don't trigger on taps of buttons/links/actions
+      if (e.target.closest('button,a,.reel-volume-btn,.reel-action-btn,.reel-follow-btn,.reel-actions')) return;
       lpFired = false;
       const ripple = card.querySelector('.lp-ripple');
       lpTimer = setTimeout(() => {
