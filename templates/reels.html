@@ -762,84 +762,191 @@
     });
   });
 
-  // ── Like / Dislike ────────────────────────────────────────────────────────
-  window.likeReel = function(btn, type) {
-    // ── Optimistic update: respond instantly, send request in background ──
-    const pid     = btn.dataset.react;
-    const emoji   = btn.dataset.emoji;
-    const cls     = type === 'like' ? 'loved' : 'disliked';
-    const wasOn   = btn.classList.contains(cls);
-    const isOn    = !wasOn;
-    const svg     = btn.querySelector('svg');
-    const lbl     = btn.querySelector('.reel-action-label');
+  // ── Like / Dislike — event delegation, no double-toggle ─────────────────
+  const _likeInFlight = new Set();
 
-    // Instant visual feedback BEFORE server responds
+  window.likeReel = function(btn, type) {
+    const pid   = btn.dataset.react;
+    const emoji = btn.dataset.emoji;
+    if (!pid || _likeInFlight.has(pid + emoji)) return;
+
+    const cls   = type === 'like' ? 'loved' : 'disliked';
+    const wasOn = btn.classList.contains(cls);
+    const isOn  = !wasOn;
+    const svg   = btn.querySelector('svg');
+    const lbl   = btn.querySelector('.reel-action-label');
+
+    // Mark in-flight BEFORE any state change
+    _likeInFlight.add(pid + emoji);
+
+    // Instant visual update
     btn.classList.toggle(cls, isOn);
     if (type === 'like') {
       svg.setAttribute('fill',   isOn ? '#ed4956' : 'none');
       svg.setAttribute('stroke', isOn ? '#ed4956' : 'white');
-      // Bump count optimistically
       if (lbl) {
         const cur = parseInt(lbl.textContent) || 0;
-        lbl.textContent = isOn ? (cur + 1) || '' : (cur - 1) > 0 ? (cur - 1) : '';
+        lbl.textContent = isOn ? String(cur + 1) : (cur - 1 > 0 ? String(cur - 1) : '');
       }
     } else {
       svg.setAttribute('fill',   isOn ? '#64a0ff' : 'none');
       svg.setAttribute('stroke', isOn ? '#64a0ff' : 'white');
     }
 
-    // Fire-and-forget server request — do NOT await
+    // Background sync — only update label from server, NOT the class (avoid flicker)
     fetch(`/post/${pid}/react`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ emoji })
     }).then(r => r.json()).then(d => {
-      // Reconcile with server truth
-      btn.classList.toggle(cls, d.liked);
-      if (type === 'like' && lbl) lbl.textContent = d.count > 0 ? d.count : '';
+      // Only correct the count, not the visual state (already set correctly)
+      if (type === 'like' && lbl) lbl.textContent = d.count > 0 ? String(d.count) : '';
     }).catch(() => {
-      // Revert on error
+      // Revert only on actual error
       btn.classList.toggle(cls, wasOn);
+      if (type === 'like') {
+        svg.setAttribute('fill',   wasOn ? '#ed4956' : 'none');
+        svg.setAttribute('stroke', wasOn ? '#ed4956' : 'white');
+      }
+    }).finally(() => {
+      _likeInFlight.delete(pid + emoji);
     });
   };
 
-  // ── Follow — also optimistic ───────────────────────────────────────────────
-  document.querySelectorAll('[data-follow-uid]').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const uid   = this.dataset.followUid;
-      const wasFollowing = this.classList.contains('following');
-      // Instant toggle
-      this.classList.toggle('following', !wasFollowing);
-      this.textContent = wasFollowing ? 'Follow' : 'Following';
-      // Background request
-      fetch(`/follow/${uid}`, { method: 'POST' })
-        .then(r => r.json())
-        .then(d => {
-          this.classList.toggle('following', d.following);
-          this.textContent = d.following ? 'Following' : 'Follow';
-        })
-        .catch(() => {
-          // Revert
-          this.classList.toggle('following', wasFollowing);
-          this.textContent = wasFollowing ? 'Following' : 'Follow';
-        });
-    });
+  // ── Follow — event delegation so it works on ALL reels including scrolled ones ──
+  // Track in-flight requests to prevent double-clicks causing toggle back
+  const _followInFlight = new Set();
+
+  document.addEventListener('click', function(e) {
+    const btn = e.target.closest('[data-follow-uid]');
+    if (!btn) return;
+
+    const uid = btn.dataset.followUid;
+    if (!uid) return;
+
+    // Prevent double-tap causing instant unfollow
+    if (_followInFlight.has(uid)) return;
+    _followInFlight.add(uid);
+
+    const wasFollowing = btn.classList.contains('following');
+
+    // Optimistic UI
+    btn.classList.toggle('following', !wasFollowing);
+    btn.textContent = wasFollowing ? 'Follow' : 'Following';
+    btn.style.opacity = '0.7';
+
+    fetch(`/follow/${uid}`, { method: 'POST' })
+      .then(r => r.json())
+      .then(d => {
+        // Trust server truth
+        btn.classList.toggle('following', d.following);
+        btn.textContent = d.following ? 'Following' : 'Follow';
+      })
+      .catch(() => {
+        // Revert on network error
+        btn.classList.toggle('following', wasFollowing);
+        btn.textContent = wasFollowing ? 'Following' : 'Follow';
+      })
+      .finally(() => {
+        btn.style.opacity = '';
+        _followInFlight.delete(uid);
+      });
   });
 
   // ── Caption expand ────────────────────────────────────────────────────────
   window.toggleCaption = el => el.classList.toggle('expanded');
 
-  // ── Share ─────────────────────────────────────────────────────────────────
+  // ── Share — opens in-app share sheet to send to a user ──────────────────
   window.shareReel = function(pid, btn) {
-    const url = `${location.origin}/feed#post-${pid}`;
-    if (navigator.share) {
-      navigator.share({ title: 'EIA Reel', url });
-    } else {
-      navigator.clipboard.writeText(url).then(() => {
-        const lbl = btn.querySelector('.reel-action-label');
-        lbl.textContent = 'Copied!';
-        setTimeout(() => lbl.textContent = 'Share', 1800);
-      });
+    openShareSheet(pid);
+  };
+
+  let _sharePostId = null;
+
+  function openShareSheet(pid) {
+    _sharePostId = pid;
+    let sheet = document.getElementById('reelShareSheet');
+    if (!sheet) {
+      sheet = document.createElement('div');
+      sheet.id = 'reelShareSheet';
+      sheet.style.cssText = 'position:fixed;inset:0;z-index:700;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center';
+      sheet.innerHTML = `
+        <div style="width:100%;max-width:480px;background:#fff;border-radius:18px 18px 0 0;padding:16px 0 max(20px,env(safe-area-inset-bottom))">
+          <div style="width:36px;height:4px;background:#ddd;border-radius:4px;margin:0 auto 14px"></div>
+          <div style="padding:0 16px 12px;font-size:15px;font-weight:800;color:#111">Send Reel to...</div>
+          <div id="reelShareSearch" style="padding:0 16px 10px">
+            <input id="reelShareInp" type="text" placeholder="Search by username…"
+              style="width:100%;padding:10px 14px;border:1.5px solid #e2e4f0;border-radius:10px;font-size:14px;outline:none;font-family:inherit"
+              oninput="searchShareUsers(this.value)">
+          </div>
+          <div id="reelShareList" style="max-height:260px;overflow-y:auto;padding:0 8px"></div>
+          <div style="padding:14px 16px 0;border-top:1px solid #f0f0f0;margin-top:4px">
+            <button onclick="document.getElementById('reelShareSheet').style.display='none'"
+              style="width:100%;padding:12px;background:#f5f5f5;border:none;border-radius:10px;font-size:14px;font-weight:600;color:#666;cursor:pointer">Cancel</button>
+          </div>
+        </div>`;
+      document.body.appendChild(sheet);
+      sheet.addEventListener('click', e => { if(e.target===sheet) sheet.style.display='none'; });
+    }
+    document.getElementById('reelShareInp').value = '';
+    document.getElementById('reelShareList').innerHTML = '<div style="text-align:center;padding:20px;color:#aaa;font-size:13px">Search for someone to send to</div>';
+    sheet.style.display = 'flex';
+    setTimeout(() => document.getElementById('reelShareInp').focus(), 100);
+  }
+
+  let _shareSearchTimer = null;
+  window.searchShareUsers = function(q) {
+    clearTimeout(_shareSearchTimer);
+    if (q.trim().length < 1) {
+      document.getElementById('reelShareList').innerHTML = '<div style="text-align:center;padding:20px;color:#aaa;font-size:13px">Search for someone to send to</div>';
+      return;
+    }
+    _shareSearchTimer = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/search-users?q=${encodeURIComponent(q)}`);
+        const users = await r.json();
+        const list = document.getElementById('reelShareList');
+        if (!users.length) {
+          list.innerHTML = '<div style="text-align:center;padding:16px;color:#aaa;font-size:13px">No users found</div>';
+          return;
+        }
+        list.innerHTML = users.map(u => `
+          <div onclick="sendReelToUser(${u.id},'${u.username}')"
+            style="display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;border-radius:10px;transition:background .1s"
+            onmouseover="this.style.background='#f7f8ff'" onmouseout="this.style.background=''">
+            <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#2e3192,#25d366);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0">
+              ${u.avatar ? `<img src="${u.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : u.username[0].toUpperCase()}
+            </div>
+            <div>
+              <div style="font-size:14px;font-weight:700;color:#111">@${u.username}</div>
+              <div style="font-size:12px;color:#888">${u.role}</div>
+            </div>
+            <div style="margin-left:auto;font-size:12px;font-weight:700;color:#2e3192;padding:5px 14px;border:1.5px solid #2e3192;border-radius:20px">Send</div>
+          </div>`).join('');
+      } catch(e) {}
+    }, 300);
+  };
+
+  window.sendReelToUser = async function(uid, username) {
+    if (!_sharePostId) return;
+    try {
+      // Start or find conversation then send a message with the reel link
+      const startRes = await fetch(`/messages/start/${uid}`, { method: 'POST' });
+      // Get the conversation — redirect won't work in fetch, so we navigate
+      const reelUrl = `${location.origin}/feed#post-${_sharePostId}`;
+      const convRes = await fetch(`/api/get-conversation/${uid}`);
+      if (convRes.ok) {
+        const convData = await convRes.json();
+        if (convData.conv_id) {
+          const fd = new FormData();
+          fd.append('content', `Check out this reel: ${reelUrl}`);
+          await fetch(`/messages/${convData.conv_id}`, { method: 'POST', body: fd, headers: {'X-Requested-With': 'XMLHttpRequest'} });
+          document.getElementById('reelShareSheet').style.display = 'none';
+          showToast(`Reel sent to @${username}!`);
+        }
+      }
+    } catch(e) {
+      showToast('Could not send — try again');
     }
   };
 

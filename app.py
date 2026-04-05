@@ -1283,6 +1283,53 @@ def follow(uid):
 def global_search():
     return redirect(url_for("explore"))
 
+@app.route("/api/search-users")
+@login_required
+def api_search_users():
+    from flask import jsonify
+    user = current_user()
+    q    = request.args.get("q", "").strip()
+    if len(q) < 1:
+        return jsonify([])
+    like = f"%{q.lower()}%"
+    rows = query(
+        """SELECT u.id, u.username, u.avatar, u.role
+           FROM users u
+           WHERE u.id != ? AND LOWER(u.username) LIKE ?
+           ORDER BY u.username LIMIT 15""",
+        (user["id"], like)
+    )
+    out = []
+    for r in rows:
+        out.append({
+            "id":       r["id"],
+            "username": r["username"],
+            "avatar":   url_for("serve_media", filename=r["avatar"]) if r.get("avatar") else "",
+            "role":     r["role"],
+        })
+    return jsonify(out)
+
+
+@app.route("/api/get-conversation/<int:uid>")
+@login_required
+def api_get_conversation(uid):
+    from flask import jsonify
+    user = current_user()
+    # Find existing conversation
+    conv = query(
+        """SELECT id FROM conversations
+           WHERE (user_a=? AND user_b=?) OR (user_a=? AND user_b=?)""",
+        (user["id"], uid, uid, user["id"]), one=True
+    )
+    if conv:
+        return jsonify({"conv_id": conv["id"]})
+    # Create new conversation
+    cid = _uid()
+    execute("INSERT INTO conversations (id,user_a,user_b,created_at) VALUES (?,?,?,?)",
+            (cid, user["id"], uid, _now()))
+    return jsonify({"conv_id": cid})
+
+
 @app.route("/explore")
 @login_required
 def explore():
