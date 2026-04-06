@@ -85,6 +85,10 @@ RECIPIENT_LABELS = {
 # ─── Flask App ─────────────────────────────────────────────────────────────────
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key        = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+app.config["SESSION_COOKIE_HTTPONLY"]  = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["PERMANENT_SESSION_LIFETIME"] = 86400  # 24 hours max
+# Sessions expire when browser closes (not permanent)
 
 @app.errorhandler(500)
 def internal_error(e):
@@ -886,8 +890,15 @@ def login():
 
 @app.route("/logout")
 def logout():
+    # Clear everything — prevent session fixation on shared devices
     session.clear()
-    return redirect(url_for("login"))
+    session.modified = True
+    resp = redirect(url_for("login"))
+    # Expire the session cookie immediately
+    resp.set_cookie(app.config.get("SESSION_COOKIE_NAME", "session"),
+                    "", expires=0, max_age=0,
+                    secure=False, httponly=True, samesite="Lax")
+    return resp
 
 # ─── Feed ─────────────────────────────────────────────────────────────────────
 @app.route("/feed")
@@ -908,8 +919,10 @@ def feed():
         )
 
     posts = [serialise_post(r, user["id"]) for r in rows]
-    recipients = ROLE_RECIPIENTS.get(role, ["all_school"])
-    return render_template("feed.html", posts=posts, recipients=recipients)
+    recipients  = ROLE_RECIPIENTS.get(role, ["all_school"])
+    reels_mode  = get_reels_settings()["mode"]
+
+    return render_template("feed.html", posts=posts, recipients=recipients, reels_mode=reels_mode)
 
 # ─── Create Post ──────────────────────────────────────────────────────────────
 @app.route("/post/create", methods=["POST"])

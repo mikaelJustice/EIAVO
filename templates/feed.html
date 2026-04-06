@@ -445,6 +445,38 @@
   .brand-wave-logo { height:44px;width:auto;opacity:.9;position:relative;z-index:1; }
 
 
+  /* ── Reels locked video overlay ── */
+  .reel-lock-overlay {
+    position: absolute; inset: 0;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    z-index: 5;
+    text-align: center;
+    padding: 20px;
+  }
+  .reel-lock-icon {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: rgba(255,255,255,0.25);
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid rgba(255,255,255,0.5);
+  }
+  .reel-lock-title {
+    font-size: 14px; font-weight: 800;
+    color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  }
+  .reel-lock-sub {
+    font-size: 12px; color: rgba(255,255,255,0.85);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    max-width: 200px; line-height: 1.4;
+  }
+
 </style>
 {% endblock %}
 
@@ -772,11 +804,21 @@
   {% if p.media %}
   <div class="post-media">
     {% if p.media_type == 'video' %}
-    <div class="feed-video-wrap" onclick="window.location.href='{{ url_for('reels') }}'" style="cursor:pointer;position:relative">
+    <div class="feed-video-wrap" onclick="{% if reels_mode != 'disabled' %}window.location.href='{{ url_for('reels') }}'{% endif %}" style="cursor:{% if reels_mode == 'disabled' %}default{% else %}pointer{% endif %};position:relative">
       <video class="feed-video" muted playsinline preload="metadata" style="width:100%;border-radius:8px;display:block;max-height:420px;object-fit:cover;pointer-events:none">
         <source src="{{ url_for('serve_media', filename=p.media) }}">
       </video>
+      {% if reels_mode == 'disabled' %}
+      <div class="reel-lock-overlay">
+        <div class="reel-lock-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <div class="reel-lock-title">Reels Closed</div>
+        <div class="reel-lock-sub">Video content has been temporarily locked by the school</div>
+      </div>
+      {% else %}
       <div style="position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,.55);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px">▶ Tap for Reels</div>
+      {% endif %}
     </div>
     {% elif p.media_type == 'document' %}
     <button class="doc-link" onclick="dlDoc(this,this.dataset.url,this.dataset.name)" data-url="{{ p.media|e }}" data-name="{{ p.media_name|e if p.media_name else p.media.split('/')[-1] }}">

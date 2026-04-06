@@ -823,50 +823,50 @@
   // ── Follow — direct named function, prevents any interception ──────────────
   const _followBusy = {};   // uid → true while request in flight
 
+  // Helper: update ALL buttons for a given uid on the page
+  function applyFollowState(uid, isFollowing) {
+    document.querySelectorAll('[data-follow-uid="' + uid + '"]').forEach(function(b) {
+      if (isFollowing) {
+        b.classList.add('following');
+        b.textContent = 'Following';
+      } else {
+        b.classList.remove('following');
+        b.textContent = 'Follow';
+      }
+      b.disabled = false;
+    });
+  }
+
   window.reelFollow = function(btn) {
     const uid = btn.dataset.followUid;
     if (!uid || _followBusy[uid]) return;
 
     const wasFollowing = btn.classList.contains('following');
 
-    // Lock immediately
+    // Lock ALL buttons for this uid immediately
     _followBusy[uid] = true;
-    btn.disabled = true;
+    document.querySelectorAll('[data-follow-uid="' + uid + '"]').forEach(function(b) {
+      b.disabled = true;
+    });
 
-    // Instant visual
-    if (wasFollowing) {
-      btn.classList.remove('following');
-      btn.textContent = 'Follow';
-    } else {
-      btn.classList.add('following');
-      btn.textContent = 'Following';
-    }
+    // Instant visual on ALL buttons for this user
+    applyFollowState(uid, !wasFollowing);
 
     fetch('/follow/' + uid, { method: 'POST', credentials: 'same-origin' })
       .then(function(r) { return r.json(); })
       .then(function(d) {
-        // Apply server truth
-        if (d.following) {
-          btn.classList.add('following');
-          btn.textContent = 'Following';
-        } else {
-          btn.classList.remove('following');
-          btn.textContent = 'Follow';
-        }
+        // Sync all buttons with server truth
+        applyFollowState(uid, d.following);
       })
       .catch(function() {
-        // Revert
-        if (wasFollowing) {
-          btn.classList.add('following');
-          btn.textContent = 'Following';
-        } else {
-          btn.classList.remove('following');
-          btn.textContent = 'Follow';
-        }
+        // Revert all on error
+        applyFollowState(uid, wasFollowing);
       })
       .finally(function() {
-        btn.disabled = false;
         _followBusy[uid] = false;
+        document.querySelectorAll('[data-follow-uid="' + uid + '"]').forEach(function(b) {
+          b.disabled = false;
+        });
       });
   };
 
