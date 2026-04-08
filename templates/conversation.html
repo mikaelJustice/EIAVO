@@ -491,24 +491,38 @@ inp.addEventListener('keydown', e=>{
   if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); document.getElementById('waForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); }
 });
 
-// Auto-refresh
-function doRefresh(){
-  fetch(location.href,{credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'}})
-    .then(r=>r.text()).then(html=>{
-      const doc=new DOMParser().parseFromString(html,'text/html');
-      const nb=doc.getElementById('waBody');
-      if(!nb)return;
-      const nc=nb.querySelectorAll('.wa-row').length;
-      if(nc>lastCount){
-        const atBot=body.scrollHeight-body.scrollTop-body.clientHeight<100;
-        body.innerHTML=nb.innerHTML;
-        lastCount=nc;
-        fixDates();
-        if(atBot)scrollBot(true);
-      }
-    }).catch(()=>{});
+// Auto-refresh — lightweight: only reload if new messages detected
+let refreshing = false;
+async function doRefresh(){
+  if(refreshing) return;
+  refreshing = true;
+  try{
+    const r = await fetch(location.href, {
+      credentials:'same-origin',
+      headers:{'X-Requested-With':'XMLHttpRequest','Cache-Control':'no-cache'}
+    });
+    const html = await r.text();
+    const doc  = new DOMParser().parseFromString(html,'text/html');
+    const nb   = doc.getElementById('waBody');
+    if(!nb){ refreshing=false; return; }
+    const nc = nb.querySelectorAll('.wa-row').length;
+    if(nc > lastCount){
+      const atBot = body.scrollHeight - body.scrollTop - body.clientHeight < 120;
+      body.innerHTML = nb.innerHTML;
+      lastCount = nc;
+      fixDates();
+      reattachVoicePlayers();
+      if(atBot) scrollBot(true);
+    }
+  }catch(e){}
+  refreshing = false;
 }
-setInterval(doRefresh,4000);
+setInterval(doRefresh, 3000);
+
+function reattachVoicePlayers(){
+  // Voice players need to be re-initialized after innerHTML swap
+  // They're handled lazily in toggleVoice so nothing needed here
+}
 function fixDates(){
   const today=new Date(),yest=new Date(today);yest.setDate(today.getDate()-1);
   const fmt=d=>d.toISOString().slice(0,10);
@@ -541,34 +555,72 @@ function toggleAnon(){
   document.getElementById('waAnonBtn').classList.toggle('on',anonOn);
 }
 
-// Form submit
-document.getElementById('waForm').addEventListener('submit',async function(e){
+// Form submit — optimistic: show message instantly
+document.getElementById('waForm').addEventListener('submit', async function(e){
   e.preventDefault();
-  lastCount=0;
-  if(_attached){
-    const fd=new FormData();
-    fd.append('video_file',_attached);
-    const cap=inp.value.trim();
-    if(cap)fd.append('caption',cap);
-    sendBtn.disabled=true;
-    try{
-      const r=await fetch(`/messages/${CONV_ID}/video`,{method:'POST',body:fd});
-      const d=await r.json();
-      if(d.ok){clearMedia();inp.value='';doRefresh();scrollBot(true);}
+  lastCount = 0;
+
+  if (_attached) {
+    const fd = new FormData();
+    fd.append('video_file', _attached);
+    const cap = inp.value.trim();
+    if (cap) fd.append('caption', cap);
+    sendBtn.disabled = true;
+    try {
+      const r = await fetch(`/messages/${CONV_ID}/video`, {method:'POST',body:fd});
+      const d = await r.json();
+      if (d.ok) { clearMedia(); inp.value=''; doRefresh(); scrollBot(true); }
       else alert('Upload failed: '+(d.error||'error'));
-    }catch(err){alert('Send failed');}
-    finally{sendBtn.disabled=false;}
+    } catch(err) { alert('Send failed'); }
+    finally { sendBtn.disabled = false; }
     return;
   }
-  const txt=inp.value.trim();
-  if(!txt)return;
-  const fd=new FormData(this);
-  try{
-    await fetch(location.href,{method:'POST',body:fd,credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'}});
-    inp.value=''; cancelReply();
-    sendBtn.style.display='none'; micBtn.style.display='flex';
-    lastCount=0; doRefresh(); scrollBot(true);
-  }catch(err){ this.submit(); }
+
+  const txt = inp.value.trim();
+  if (!txt) return;
+
+  // Snapshot reply data before clearing
+  const replyId = document.getElementById('waRepId').value;
+  const replyPv = document.getElementById('waRepData').value;
+  const sentTxt = txt;
+  const now     = new Date();
+  const timeStr = now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
+
+  // Add optimistic bubble immediately
+  const optRow = document.createElement('div');
+  optRow.className = 'wa-row mine';
+  optRow.innerHTML = `<div class="wa-bubble" style="opacity:.8">
+    ${replyId && replyPv ? `<div class="wa-rq">
+      <div class="wa-rq-name">${(replyPv.split('|||')[0]||'Message').replace(/</g,'&lt;')}</div>
+      <div class="wa-rq-text">${(replyPv.split('|||')[1]||replyPv).replace(/</g,'&lt;')}</div>
+    </div>` : ''}
+    ${sentTxt.replace(/</g,'&lt;').replace(/
+/g,'<br>')}
+    <div class="wa-meta">${timeStr}
+      <span class="wa-ticks"><svg viewBox="0 0 24 24" fill="none" stroke="#8696a0" stroke-width="2.5" stroke-linecap="round" width="15" height="15"><polyline points="4 12 9 17 20 6"/></svg></span>
+    </div>
+  </div>`;
+  body.appendChild(optRow);
+  scrollBot(true);
+
+  // Clear inputs right away — feels instant
+  inp.value = '';
+  cancelReply();
+  sendBtn.style.display = 'none';
+  micBtn.style.display  = 'flex';
+
+  // Send to server in background (collect FormData BEFORE clearing)
+  const fd = new FormData(this);
+  fd.set('content', sentTxt);
+  try {
+    await fetch(location.href, {method:'POST', body:fd, credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}});
+    optRow.remove();
+    lastCount = 0;
+    doRefresh();
+  } catch(err) {
+    optRow.querySelector('.wa-bubble').style.opacity = '1';
+    optRow.querySelector('.wa-bubble').style.background = '#ffe0e0';
+  }
 });
 
 // Delete

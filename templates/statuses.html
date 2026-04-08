@@ -1,0 +1,562 @@
+{% extends "base.html" %}
+{% block title %}Statuses{% endblock %}
+{% block extra_head %}
+<style>
+/* WhatsApp Status tab layout */
+.st-wrap { max-width: 640px; margin: 0 auto; }
+
+/* My status section */
+.st-mine-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px;
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r);
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: background .12s;
+  text-decoration: none; color: inherit;
+}
+.st-mine-card:hover { background: #f7f8ff; }
+.st-mine-ring-wrap { position: relative; flex-shrink: 0; }
+.st-mine-ring {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: #e2e4f0;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.st-mine-ring img { width:100%;height:100%;object-fit:cover; }
+.st-mine-ring .init { font-size:20px;font-weight:800;color:var(--navy); }
+.st-add-btn {
+  position: absolute; bottom: -2px; right: -2px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--green); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; line-height: 1;
+  border: 2px solid var(--white);
+  box-shadow: 0 1px 4px rgba(0,0,0,.2);
+}
+.st-mine-info strong { font-size: 15px; font-weight: 700; display: block; }
+.st-mine-info span { font-size: 12px; color: var(--ink3); }
+
+/* Section label */
+.st-section-label {
+  font-size: 11px; font-weight: 700; color: var(--ink3);
+  text-transform: uppercase; letter-spacing: .08em;
+  padding: 16px 4px 8px;
+}
+
+/* Status row */
+.st-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 16px;
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r);
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: background .12s;
+}
+.st-row:hover { background: #f7f8ff; }
+.st-ring-wrap { position: relative; flex-shrink: 0; }
+.st-ring {
+  width: 56px; height: 56px; border-radius: 50%;
+  padding: 3px;
+  background: linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);
+}
+.st-ring.viewed { background: #c8c8c8; }
+.st-ring-gap {
+  width: 100%; height: 100%; border-radius: 50%;
+  background: var(--white); padding: 2px;
+  display: flex; align-items: center; justify-content: center;
+}
+.st-av {
+  width: 100%; height: 100%; border-radius: 50%;
+  background: linear-gradient(135deg,var(--navy),var(--green-d));
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 18px; overflow: hidden;
+}
+.st-av img { width:100%;height:100%;object-fit:cover; }
+.st-online-dot {
+  position: absolute; bottom: 2px; right: 2px;
+  width: 13px; height: 13px; border-radius: 50%;
+  background: #25d366; border: 2.5px solid var(--white);
+  animation: onlinePulse 2.5s ease-in-out infinite;
+}
+.st-online-dot.away { background: #3b82f6; animation:none; }
+@keyframes onlinePulse {
+  0%,100%{ box-shadow:0 0 0 0 rgba(37,211,102,.5); }
+  50%{ box-shadow:0 0 0 5px rgba(37,211,102,0); }
+}
+.st-row-info { flex: 1; min-width: 0; }
+.st-row-name { font-size: 15px; font-weight: 700; color: var(--ink); }
+.st-row-meta { font-size: 12px; color: var(--ink3); margin-top: 2px; }
+.st-count-badge {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--navy); color: #fff;
+  font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Empty state */
+.st-empty { text-align:center; padding:48px 20px; color:var(--ink3); }
+.st-empty svg { opacity:.25; margin-bottom:14px; }
+
+/* Post status modal */
+  .post-status-overlay {
+    position:fixed;inset:0;z-index:700;
+    background:rgba(0,0,0,.55);
+    display:none;align-items:flex-end;justify-content:center;
+  }
+  .post-status-overlay.open{display:flex;}
+  @media(min-width:600px){.post-status-overlay{align-items:center;}}
+  .post-status-box {
+    background:var(--white);
+    border-radius:18px 18px 0 0;
+    width:100%;max-width:480px;
+    padding:20px 20px max(20px,env(safe-area-inset-bottom));
+    max-height:92vh;overflow-y:auto;
+  }
+  @media(min-width:600px){.post-status-box{border-radius:var(--r);margin:16px;}}
+  .color-swatch{width:28px;height:28px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .1s,border-color .1s;flex-shrink:0;}
+  .color-swatch.selected{border-color:var(--ink);transform:scale(1.2);}
+  /* Viewer CSS — imported from base via extra_head is not possible so inline here */
+  .sv-overlay{position:fixed;inset:0;z-index:9900;background:#000;display:none;overflow:hidden;}
+  .sv-overlay.open{display:block;}
+  @keyframes svSlideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+  @keyframes svSlideInLeft{from{transform:translateX(-100%);opacity:0}to{transform:translateX(0);opacity:1}}
+  .sv-card{position:absolute;inset:0;max-width:520px;margin:0 auto;display:flex;flex-direction:column;background:#111;}
+  .sv-card.slide-in-right{animation:svSlideIn .25s cubic-bezier(.22,1,.36,1) forwards;}
+  .sv-card.slide-in-left{animation:svSlideInLeft .25s cubic-bezier(.22,1,.36,1) forwards;}
+  .sv-progs{position:absolute;top:0;left:0;right:0;display:flex;gap:3px;padding:max(10px,env(safe-area-inset-top)) 10px 0;z-index:20;}
+  .sv-pseg{flex:1;height:2.5px;background:rgba(255,255,255,.3);border-radius:2px;overflow:hidden;}
+  .sv-pfill{height:100%;width:0%;background:#fff;}
+  .sv-hdr{position:absolute;top:max(24px,calc(env(safe-area-inset-top)+14px));left:0;right:0;display:flex;align-items:center;gap:10px;padding:6px 12px;z-index:20;}
+  .sv-user-strip{display:flex;gap:6px;align-items:center;overflow-x:auto;flex:1;scrollbar-width:none;}
+  .sv-user-strip::-webkit-scrollbar{display:none;}
+  .sv-user-thumb{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;flex-shrink:0;opacity:.5;transition:opacity .15s;}
+  .sv-user-thumb.active{opacity:1;}
+  .sv-uthumb-ring{width:36px;height:36px;border-radius:50%;padding:2px;background:rgba(255,255,255,.3);}
+  .sv-user-thumb.active .sv-uthumb-ring{background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);}
+  .sv-uthumb-inner{width:100%;height:100%;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;overflow:hidden;border:2px solid #000;}
+  .sv-uthumb-inner img{width:100%;height:100%;object-fit:cover;}
+  .sv-uthumb-name{font-size:9px;font-weight:600;color:rgba(255,255,255,.75);max-width:36px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sv-close-btn{width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.4);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .sv-author-row{position:absolute;top:max(76px,calc(env(safe-area-inset-top)+66px));left:0;right:0;display:flex;align-items:center;gap:10px;padding:0 14px;z-index:20;}
+  .sv-author-av{width:38px;height:38px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;overflow:hidden;flex-shrink:0;border:2px solid rgba(255,255,255,.5);position:relative;}
+  .sv-author-av img{width:100%;height:100%;object-fit:cover;}
+  .sv-author-name{font-size:14px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.5);}
+  .sv-author-time{font-size:11px;color:rgba(255,255,255,.65);margin-top:1px;}
+  .sv-online-dot{width:10px;height:10px;border-radius:50%;background:#25d366;border:2px solid #000;position:absolute;bottom:0;right:0;}
+  .sv-mute-btn{width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.4);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .sv-media{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
+  .sv-media img,.sv-media video{width:100%;height:100%;object-fit:cover;}
+  .sv-bg-color{position:absolute;inset:0;}
+  .sv-text-overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;font-size:26px;font-weight:800;text-align:center;padding:24px 28px;line-height:1.4;text-shadow:0 2px 16px rgba(0,0,0,.6);max-width:400px;word-break:break-word;z-index:5;}
+  .sv-hold-indicator{position:absolute;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;pointer-events:none;background:rgba(0,0,0,.3);}
+  .sv-hold-indicator.show{opacity:1;}
+  .sv-tap-left,.sv-tap-right{position:absolute;top:0;bottom:0;width:35%;z-index:15;cursor:pointer;}
+  .sv-tap-left{left:0;}.sv-tap-right{right:0;}
+  .sv-footer{position:absolute;bottom:0;left:0;right:0;padding:60px 16px max(20px,env(safe-area-inset-bottom)) 16px;background:linear-gradient(to top,rgba(0,0,0,.7) 0%,transparent 100%);z-index:20;display:flex;align-items:center;gap:10px;}
+  .sv-views-label{color:rgba(255,255,255,.8);font-size:13px;font-weight:600;display:flex;align-items:center;gap:5px;}
+  .sv-del-btn{margin-left:auto;background:rgba(237,73,86,.25);border:1px solid rgba(237,73,86,.5);color:#fff;border-radius:20px;padding:6px 16px;font-size:12px;font-weight:700;cursor:pointer;}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Status viewer is loaded from the feed page JS via openSV -->
+<!-- We open statuses.html which includes the viewer inline -->
+
+<div class="st-wrap">
+
+  <!-- My Status -->
+  <div class="st-section-label">My Status</div>
+
+  {% if my_statuses %}
+  <!-- Has statuses — show most recent thumbnail -->
+  {% set latest = my_statuses[0] %}
+  <div class="st-row" onclick="openMyStatuses()">
+    <div class="st-ring-wrap">
+      <div class="st-ring" style="background:linear-gradient(135deg,var(--navy),var(--green))">
+        <div class="st-ring-gap">
+          <div class="st-av">
+            {% if cu.avatar %}<img src="{{ url_for('serve_media', filename=cu.avatar) }}" alt="">
+            {% else %}{{ cu.username[0].upper() }}{% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="st-add-btn" onclick="event.stopPropagation();openPostStatus()">+</div>
+    </div>
+    <div class="st-row-info">
+      <div class="st-row-name">My Status</div>
+      <div class="st-row-meta">{{ my_statuses|length }} status{{ 'es' if my_statuses|length != 1 }} · {{ _rel(latest.created_at) }}</div>
+    </div>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink3)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+  </div>
+  {% else %}
+  <!-- No status yet -->
+  <div class="st-mine-card" onclick="openPostStatus()">
+    <div class="st-mine-ring-wrap">
+      <div class="st-mine-ring">
+        {% if cu.avatar %}<img src="{{ url_for('serve_media', filename=cu.avatar) }}" alt="">
+        {% else %}<span class="init">{{ cu.username[0].upper() }}</span>{% endif %}
+      </div>
+      <div class="st-add-btn">+</div>
+    </div>
+    <div class="st-mine-info">
+      <strong>Add status</strong>
+      <span>Tap to add a status update</span>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Others' statuses -->
+  {% if groups | selectattr('is_mine', 'equalto', false) | list %}
+  <div class="st-section-label">Recent updates</div>
+  {% for g in groups %}
+  {% if not g.is_mine %}
+  <div class="st-row" data-gidx="{{ loop.index0 }}" onclick="openGroupStatus({{ loop.index0 }})">
+    <div class="st-ring-wrap">
+      <div class="st-ring {% if g.all_viewed %}viewed{% endif %}">
+        <div class="st-ring-gap">
+          <div class="st-av">
+            {% if g.avatar %}<img src="{{ url_for('serve_media', filename=g.avatar) }}" alt="">
+            {% else %}{{ g.username[0].upper() }}{% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="st-online-dot" data-online-uid="{{ g.user_id }}" style="display:none"></div>
+    </div>
+    <div class="st-row-info">
+      <div class="st-row-name">{{ g.username }}</div>
+      <div class="st-row-meta">
+        {{ g.statuses|length }} status{{ 'es' if g.statuses|length != 1 }} ·
+        {{ _rel(g.statuses[0].created_at) if g.statuses }}
+      </div>
+    </div>
+    {% if not g.all_viewed %}
+    <div class="st-count-badge">{{ g.statuses|length }}</div>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% endfor %}
+  {% else %}
+  <div class="st-empty">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" display="block" style="margin:0 auto"><circle cx="12" cy="8" r="5"/><path d="M3 21v-2a7 7 0 0 1 14 0v2"/><circle cx="19" cy="9" r="3"/><path d="M21 15c.5.3 1 .8 1 1.5V19"/></svg>
+    <p style="margin-top:10px;font-size:14px">No status updates from people you follow yet.</p>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Post status modal (reused) -->
+<div class="post-status-overlay" id="postStatusOverlay">
+  <div class="post-status-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h3 style="font-size:16px;font-weight:800">Post a Status</h3>
+      <button onclick="closePostStatus()" style="background:none;border:none;cursor:pointer;color:var(--ink3)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="POST" action="{{ url_for('status_post') }}" enctype="multipart/form-data" id="statusForm">
+      <div id="statusPreview" style="width:100%;height:160px;border-radius:12px;background:#2e3192;display:flex;align-items:center;justify-content:center;margin-bottom:14px;overflow:hidden;position:relative">
+        <span id="statusPreviewText" style="color:#fff;font-size:18px;font-weight:700;text-align:center;padding:16px;line-height:1.4">What's on your mind?</span>
+        <img id="statusPreviewImg" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0" src="" alt="">
+        <video id="statusPreviewVid" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0" muted playsinline loop></video>
+      </div>
+      <div class="field" style="margin-bottom:10px">
+        <textarea name="text" id="statusText" placeholder="Type your status…" rows="2" maxlength="200"
+                  style="resize:none;font-size:15px" oninput="updateStatusPreview()"></textarea>
+      </div>
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Background</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap" id="colorSwatches">
+          {% for c in ['#2e3192','#1a1a2e','#166534','#7b1fa2','#c62828','#e65100','#0369a1','#111827'] %}
+          <div class="color-swatch {% if loop.first %}selected{% endif %}" style="background:{{ c }}"
+               data-color="{{ c }}" onclick="pickColor(this)"></div>
+          {% endfor %}
+        </div>
+        <input type="hidden" name="bg_color" id="bgColorInput" value="#2e3192">
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--navy)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          Add photo / video
+          <input type="file" name="media" id="statusMedia" accept="image/*,video/*" style="display:none" onchange="previewStatusMedia(this)">
+        </label>
+        <span id="statusMediaName" style="font-size:12px;color:var(--ink3);margin-left:8px"></span>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button type="submit" class="btn btn-primary" style="flex:1">Post Status</button>
+        <button type="button" onclick="closePostStatus()" class="btn btn-outline">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Status Viewer (same as feed page) -->
+<div class="sv-overlay" id="svOverlay">
+  <div class="sv-card" id="svCard">
+    <div class="sv-progs" id="svProgs"></div>
+    <div class="sv-hdr">
+      <div class="sv-user-strip" id="svUserStrip"></div>
+      <button class="sv-close-btn" onclick="closeSV()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="sv-author-row">
+      <div class="sv-author-av" id="svAuthorAv">
+        <div class="sv-online-dot" id="svOnlineDot" style="display:none"></div>
+      </div>
+      <div>
+        <div class="sv-author-name" id="svAuthorName"></div>
+        <div class="sv-author-time" id="svAuthorTime"></div>
+      </div>
+      <button class="sv-mute-btn" id="svMuteBtn" style="margin-left:auto;display:none" onclick="toggleSVMute()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" id="svVolIcon"/></svg>
+      </button>
+    </div>
+    <div class="sv-media" id="svMedia">
+      <div class="sv-bg-color" id="svBgColor"></div>
+    </div>
+    <div class="sv-text-overlay" id="svTextOverlay" style="display:none"></div>
+    <div class="sv-hold-indicator" id="svHoldInd">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+    </div>
+    <div class="sv-tap-left" id="svTapLeft"></div>
+    <div class="sv-tap-right" id="svTapRight"></div>
+    <div class="sv-footer">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.8)" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      <span class="sv-views-label" id="svViews">0 views</span>
+      <button class="sv-del-btn" id="svDelBtn" style="display:none" onclick="svDeleteCurrent()">Delete</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Groups data — URLs already resolved by server
+let allGroups = {{ groups | tojson }};
+// Normalise: use avatar_url and media_url fields (set by server)
+allGroups = allGroups.map(g => ({
+  ...g,
+  avatar: g.avatar_url || g.avatar || '',
+  statuses: (g.statuses || []).map(s => ({
+    ...s,
+    media_path: s.media_url || s.media_path || ''
+  }))
+}));
+
+let svGroupIdx = 0, svStatusIdx = 0, svTimer = null, svHoldTimer = null;
+let svPaused = false, svMuted = true, svVideo = null;
+const DURATION = 5000;
+
+// Open my statuses or post modal if none
+window.openMyStatuses = function(){
+  const myIdx = allGroups.findIndex(g => g.is_mine);
+  if (myIdx >= 0 && allGroups[myIdx].statuses.length > 0) {
+    openSV(myIdx, 0);
+  } else {
+    openPostStatus();
+  }
+};
+
+// Open a specific group's statuses
+window.openGroupStatus = function(gIdx){ openSV(gIdx, 0); };
+
+window.openSV = function(gIdx, sIdx){
+  svGroupIdx = gIdx; svStatusIdx = sIdx;
+  document.getElementById('svOverlay').classList.add('open');
+  document.documentElement.style.overflow = 'hidden';
+  document.body.style.overflow = 'hidden';
+  document.body.style.position = 'fixed';
+  document.body.style.width = '100%';
+  buildUserStrip();
+  renderSV(false);
+};
+
+window.closeSV = function(){
+  clearTimeout(svTimer);
+  if(svVideo){ svVideo.pause(); svVideo=null; }
+  document.getElementById('svOverlay').classList.remove('open');
+  document.documentElement.style.overflow='';
+  document.body.style.overflow='';
+  document.body.style.position='';
+  document.body.style.width='';
+};
+
+function buildUserStrip(){
+  const strip = document.getElementById('svUserStrip');
+  strip.innerHTML='';
+  allGroups.forEach((g,i)=>{
+    const el=document.createElement('div');
+    el.className='sv-user-thumb'+(i===svGroupIdx?' active':'');
+    el.id='svThumb-'+i;
+    el.innerHTML=`<div class="sv-uthumb-ring"><div class="sv-uthumb-inner">${g.avatar?`<img src="${g.avatar}" alt="">`:g.username[0].toUpperCase()}</div></div><span class="sv-uthumb-name">${g.is_mine?'You':g.username}</span>`;
+    el.onclick=()=>{ svGroupIdx=i; svStatusIdx=0; buildUserStrip(); renderSV('right'); };
+    strip.appendChild(el);
+  });
+  const act=document.getElementById('svThumb-'+svGroupIdx);
+  if(act) act.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'});
+}
+
+window.svNav = function(dir){
+  clearTimeout(svTimer);
+  const group=allGroups[svGroupIdx];
+  const ni=svStatusIdx+dir;
+  if(ni>=0&&ni<group.statuses.length){ svStatusIdx=ni; renderSV(false); }
+  else if(dir>0&&svGroupIdx<allGroups.length-1){ svGroupIdx++; svStatusIdx=0; buildUserStrip(); renderSV('right'); }
+  else if(dir<0&&svGroupIdx>0){ svGroupIdx--; svStatusIdx=allGroups[svGroupIdx].statuses.length-1; buildUserStrip(); renderSV('left'); }
+  else closeSV();
+};
+
+function renderSV(slideDir){
+  const group=allGroups[svGroupIdx]; if(!group){closeSV();return;}
+  const status=group.statuses[svStatusIdx]; if(!status){closeSV();return;}
+  const card=document.getElementById('svCard');
+  if(slideDir==='right'){ card.classList.remove('slide-in-left'); card.offsetHeight; card.classList.add('slide-in-right'); }
+  else if(slideDir==='left'){ card.classList.remove('slide-in-right'); card.offsetHeight; card.classList.add('slide-in-left'); }
+  setTimeout(()=>card.classList.remove('slide-in-right','slide-in-left'),300);
+
+  if(!status.i_viewed){
+    fetch('/status/'+status.id+'/view',{method:'POST'});
+    status.i_viewed=true;
+    if(group.statuses.every(s=>s.i_viewed)) group.all_viewed=true;
+  }
+
+  const progsEl=document.getElementById('svProgs');
+  progsEl.innerHTML='';
+  group.statuses.forEach((_,i)=>{
+    const seg=document.createElement('div'); seg.className='sv-pseg';
+    const fill=document.createElement('div'); fill.className='sv-pfill'; fill.id='svFill-'+i;
+    if(i<svStatusIdx) fill.style.width='100%';
+    seg.appendChild(fill); progsEl.appendChild(seg);
+  });
+
+  const av=document.getElementById('svAuthorAv');
+  const dot=document.getElementById('svOnlineDot');
+  av.innerHTML=''; av.appendChild(dot);
+  if(group.avatar){ const img=document.createElement('img'); img.src=group.avatar; img.alt=''; img.style.cssText='position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%'; av.insertBefore(img,dot); }
+  else av.insertBefore(document.createTextNode(group.username[0].toUpperCase()),dot);
+  document.getElementById('svAuthorName').textContent=group.is_mine?'Your status':group.username;
+  document.getElementById('svAuthorTime').textContent=timeAgo(status.created_at);
+  dot.style.display='block';
+
+  const media=document.getElementById('svMedia');
+  const bgCol=document.getElementById('svBgColor');
+  const txtEl=document.getElementById('svTextOverlay');
+  if(svVideo){svVideo.pause();svVideo=null;}
+  Array.from(media.children).forEach(c=>{ if(c.id!=='svBgColor') c.remove(); });
+  bgCol.style.background=status.bg_color||'#1a1a2e';
+
+  if(status.media_path&&status.media_type==='video'){
+    const vid=document.createElement('video');
+    vid.src=status.media_path; vid.style.cssText='position:absolute;inset:0;width:100%;height:100%;object-fit:cover';
+    vid.autoplay=true; vid.muted=svMuted; vid.loop=true; vid.playsInline=true;
+    media.appendChild(vid); svVideo=vid;
+    document.getElementById('svMuteBtn').style.display='flex';
+  } else if(status.media_path){
+    const img=document.createElement('img'); img.src=status.media_path;
+    img.style.cssText='position:absolute;inset:0;width:100%;height:100%;object-fit:cover';
+    media.appendChild(img);
+    document.getElementById('svMuteBtn').style.display='none';
+  } else {
+    document.getElementById('svMuteBtn').style.display='none';
+  }
+  txtEl.textContent=status.text||''; txtEl.style.display=status.text?'block':'none';
+  document.getElementById('svViews').textContent=status.view_count+' view'+(status.view_count!==1?'s':'');
+  const del=document.getElementById('svDelBtn'); del.style.display=status.is_mine?'block':'none'; del.dataset.sid=status.id;
+  startSVTimer();
+}
+
+function startSVTimer(){
+  clearTimeout(svTimer);
+  const fill=document.getElementById('svFill-'+svStatusIdx); if(!fill) return;
+  fill.style.transition=`width ${DURATION}ms linear`; fill.style.width='100%';
+  svTimer=setTimeout(()=>{ if(!svPaused) svNav(1); }, DURATION);
+}
+
+function pauseSV(){
+  if(svPaused) return; svPaused=true; clearTimeout(svTimer);
+  if(svVideo) svVideo.pause();
+  const fill=document.getElementById('svFill-'+svStatusIdx);
+  if(fill){ const w=fill.offsetWidth/fill.parentElement.offsetWidth*100; fill.style.transition='none'; fill.style.width=w+'%'; }
+  document.getElementById('svHoldInd').classList.add('show');
+}
+function resumeSV(){
+  if(!svPaused) return; svPaused=false;
+  if(svVideo) svVideo.play();
+  document.getElementById('svHoldInd').classList.remove('show');
+  const fill=document.getElementById('svFill-'+svStatusIdx);
+  if(fill){ const used=parseFloat(fill.style.width)||0; const rem=DURATION*((100-used)/100); fill.style.transition=`width ${rem}ms linear`; fill.style.width='100%'; svTimer=setTimeout(()=>{ if(!svPaused) svNav(1); },rem); }
+}
+
+window.toggleSVMute=function(){ svMuted=!svMuted; if(svVideo) svVideo.muted=svMuted; };
+
+// Tap zones
+['svTapLeft','svTapRight'].forEach((id,di)=>{
+  const el=document.getElementById(id); if(!el) return;
+  const dir=di===0?-1:1; let dt=0;
+  el.addEventListener('pointerdown',()=>{ dt=Date.now(); svHoldTimer=setTimeout(()=>pauseSV(),180); });
+  el.addEventListener('pointerup',()=>{ clearTimeout(svHoldTimer); if(svPaused){resumeSV();return;} if(Date.now()-dt<250) svNav(dir); });
+  el.addEventListener('pointercancel',()=>{ clearTimeout(svHoldTimer); resumeSV(); });
+});
+
+window.svDeleteCurrent=async function(){
+  const sid=document.getElementById('svDelBtn').dataset.sid;
+  if(!confirm('Delete this status?')) return;
+  await fetch('/status/'+sid+'/delete',{method:'POST'});
+  const g=allGroups[svGroupIdx]; g.statuses.splice(svStatusIdx,1);
+  if(g.statuses.length===0){ allGroups.splice(svGroupIdx,1); svGroupIdx=Math.max(0,svGroupIdx-1); svStatusIdx=0; }
+  else svStatusIdx=Math.min(svStatusIdx,g.statuses.length-1);
+  if(allGroups.length===0){closeSV();return;}
+  buildUserStrip(); renderSV(false);
+};
+
+function timeAgo(dt){
+  if(!dt) return '';
+  const diff=(Date.now()-new Date(dt).getTime())/1000;
+  if(diff<60) return 'just now'; if(diff<3600) return Math.floor(diff/60)+'m ago';
+  return Math.floor(diff/3600)+'h ago';
+}
+
+document.addEventListener('keydown',e=>{
+  if(!document.getElementById('svOverlay').classList.contains('open')) return;
+  if(e.key==='ArrowRight') svNav(1); if(e.key==='ArrowLeft') svNav(-1);
+  if(e.key==='Escape') closeSV(); if(e.key===' '){ svPaused?resumeSV():pauseSV(); }
+});
+
+// Post status modal
+window.openPostStatus=()=>{ document.getElementById('postStatusOverlay').classList.add('open'); document.body.style.overflow='hidden'; };
+window.closePostStatus=()=>{ document.getElementById('postStatusOverlay').classList.remove('open'); document.body.style.overflow=''; };
+window.updateStatusPreview=()=>{
+  const text=document.getElementById('statusText').value;
+  document.getElementById('statusPreviewText').textContent=text||"What's on your mind?";
+  document.getElementById('statusPreview').style.background=document.getElementById('bgColorInput').value;
+};
+window.pickColor=el=>{
+  document.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('bgColorInput').value=el.dataset.color;
+  document.getElementById('statusPreview').style.background=el.dataset.color;
+};
+window.previewStatusMedia=inp=>{
+  const file=inp.files[0]; if(!file) return;
+  document.getElementById('statusMediaName').textContent=file.name;
+  const url=URL.createObjectURL(file); const isVid=file.type.startsWith('video/');
+  const img=document.getElementById('statusPreviewImg'); const vid=document.getElementById('statusPreviewVid');
+  document.getElementById('statusPreviewText').style.display='none';
+  if(isVid){img.style.display='none';vid.src=url;vid.style.display='block';vid.play().catch(()=>{});}
+  else{vid.style.display='none';img.src=url;img.style.display='block';}
+};
+
+// Swipe on viewer
+let _svTX=0;
+document.getElementById('svOverlay').addEventListener('touchstart',e=>{_svTX=e.touches[0].clientX;},{passive:true});
+document.getElementById('svOverlay').addEventListener('touchend',e=>{ const dx=e.changedTouches[0].clientX-_svTX; if(Math.abs(dx)>60) svNav(dx<0?1:-1); });
+</script>
+{% endblock %}

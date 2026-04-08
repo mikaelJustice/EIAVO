@@ -64,11 +64,11 @@
 
     /* Content */
     .hero-inner{position:relative;z-index:2;max-width:460px;width:100%}
-    .hero-logo{margin-bottom:40px}
-    .hero-logo img{height:68px;width:auto;filter:brightness(0) invert(1) drop-shadow(0 2px 12px rgba(0,0,0,.3))}
-    .hero-headline{
-      font-family:'Syne',sans-serif;font-size:52px;font-weight:900;
-      color:#fff;line-height:1.05;letter-spacing:-2px;margin-bottom:18px;
+    .hero-logo { margin-bottom: 36px; }
+    .hero-logo img { height: 72px; width: auto; display: block; }
+        .hero-headline{
+      font-family:'Inter',sans-serif;font-size:52px;font-weight:800;
+      color:#fff;line-height:1.1;letter-spacing:-.5px;margin-bottom:18px;
     }
     .hero-headline .green{
       color:var(--green-l);
@@ -108,12 +108,11 @@
       background:linear-gradient(90deg,var(--navy) 0%,var(--green) 100%);
     }
 
-    .panel-logo{margin-bottom:32px}
-    .panel-logo img{height:56px;width:auto}
-
-    .panel-title{
-      font-family:'Syne',sans-serif;font-size:30px;font-weight:800;
-      letter-spacing:-.6px;margin-bottom:4px;text-align:center;color:var(--ink);
+    .panel-logo { margin-bottom: 28px; text-align: center; }
+    .panel-logo img { height: 72px; width: auto; display: inline-block; }
+        .panel-title{
+      font-family:'Inter',sans-serif;font-size:30px;font-weight:800;
+      letter-spacing:-.3px;margin-bottom:4px;text-align:center;color:var(--ink);
     }
     .panel-sub{font-size:14px;color:var(--ink2);margin-bottom:32px;text-align:center}
 
@@ -177,9 +176,9 @@
 
   <div class="hero-inner">
     <div class="hero-logo">
-      <img src="/static/img/eia-logo.png" alt="EIA">
+      <img src="/static/img/eia-logo-white.png" alt="EIA Voice">
     </div>
-    <div class="hero-headline">Your voice,<br><span class="green">amplified.</span></div>
+        <div class="hero-headline">Your voice,<br><span class="green">amplified.</span></div>
     <p class="hero-sub">Empower International Academy's platform for free, safe, and meaningful expression across your school community.</p>
 
     <div class="features">
@@ -213,9 +212,9 @@
 
 <div class="panel">
   <div class="panel-logo">
-    <img src="/static/img/eia-logo.png" alt="Empower International Academy">
+    <img src="/static/img/eia-logo-transparent.png" alt="Empower International Academy">
   </div>
-  <div class="panel-title">Welcome back</div>
+    <div class="panel-title">Welcome back</div>
   <p class="panel-sub">Sign in to your EIA Voice account</p>
 
   {% with messages = get_flashed_messages(with_categories=true) %}

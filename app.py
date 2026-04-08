@@ -85,6 +85,10 @@ RECIPIENT_LABELS = {
 # ─── Flask App ─────────────────────────────────────────────────────────────────
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key        = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+app.config["SESSION_COOKIE_HTTPONLY"]  = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["PERMANENT_SESSION_LIFETIME"] = 86400  # 24 hours max
+# Sessions expire when browser closes (not permanent)
 
 @app.errorhandler(500)
 def internal_error(e):
@@ -574,6 +578,33 @@ def init_db():
         UNIQUE(status_id, viewer_id)
     )""")
 
+    # ── Reels time-limit control ──────────────────────────────────────────────
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS reels_settings (
+        id              INTEGER PRIMARY KEY DEFAULT 1,
+        mode            TEXT NOT NULL DEFAULT 'unlimited',
+        daily_limit_mins INTEGER NOT NULL DEFAULT 10,
+        updated_at      TEXT NOT NULL,
+        updated_by      INTEGER REFERENCES users(id),
+        CONSTRAINT single_row CHECK (id = 1)
+    )""")
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS user_presence (
+        user_id     INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        last_seen   TEXT NOT NULL,
+        status      TEXT NOT NULL DEFAULT 'online'
+    )""")
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS reels_usage (
+        id          SERIAL PRIMARY KEY,
+        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        usage_date  TEXT NOT NULL,
+        seconds_used INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(user_id, usage_date)
+    )""")
+
     migrations = [
         "ALTER TABLE posts          ADD COLUMN IF NOT EXISTS media_name  TEXT DEFAULT ''",
         "ALTER TABLE messages       ADD COLUMN IF NOT EXISTS voice_url   TEXT DEFAULT ''",
@@ -843,24 +874,39 @@ def index():
 
 @app.route("/login", methods=["GET","POST"])
 def login():
+    # Always show login page — don't silently redirect (causes ghost sessions on shared devices)
     if "user_id" in session:
-        return redirect(url_for("feed"))
+        # Clear any stale session before showing the form
+        session.clear()
     if request.method == "POST":
         uname = request.form.get("username","").strip().lower()
         pw    = request.form.get("password","")
         user  = query("SELECT * FROM users WHERE LOWER(username)=?", (uname,), one=True)
         if user and user["password"] == _hash(pw):
-            session.permanent = True
-            session.update({"user_id": user["id"], "role": user["role"],
-                            "username": user["username"], "name": user["name"]})
+            # NOT permanent — session dies when browser closes
+            session.permanent = False
+            session["user_id"]  = user["id"]
+            session["role"]     = user["role"]
+            session["username"] = user["username"]
+            session["name"]     = user["name"]
+            session.modified    = True
             return redirect(request.args.get("next") or url_for("feed"))
         flash("Invalid username or password", "error")
     return render_template("login.html")
 
 @app.route("/logout")
 def logout():
+    # Nuclear clear — wipe everything
     session.clear()
-    return redirect(url_for("login"))
+    session.modified = True
+    # Re-generate a fresh empty session
+    from flask import make_response
+    resp = make_response(redirect(url_for("login")))
+    # Kill the session cookie on the browser side
+    cookie_name = app.config.get("SESSION_COOKIE_NAME", "session")
+    resp.set_cookie(cookie_name, "", expires=0, max_age=0,
+                    httponly=True, samesite="Lax")
+    return resp
 
 # ─── Feed ─────────────────────────────────────────────────────────────────────
 @app.route("/feed")
@@ -881,8 +927,10 @@ def feed():
         )
 
     posts = [serialise_post(r, user["id"]) for r in rows]
-    recipients = ROLE_RECIPIENTS.get(role, ["all_school"])
-    return render_template("feed.html", posts=posts, recipients=recipients)
+    recipients  = ROLE_RECIPIENTS.get(role, ["all_school"])
+    reels_mode  = get_reels_settings()["mode"]
+
+    return render_template("feed.html", posts=posts, recipients=recipients, reels_mode=reels_mode)
 
 # ─── Create Post ──────────────────────────────────────────────────────────────
 @app.route("/post/create", methods=["POST"])
@@ -1008,9 +1056,10 @@ def react_post(pid):
         try:
             execute("INSERT INTO reactions (post_id,user_id,emoji) VALUES (?,?,?)",
                     (pid, user["id"], emoji))
+            liked = True
         except Exception:
-            pass
-        liked = True
+            # Duplicate — treat as already liked (don't toggle again)
+            liked = True
         # Notify post author
         post = query("SELECT * FROM posts WHERE id=?", (pid,), one=True)
         if post and post["author_id"] != user["id"]:
@@ -1141,17 +1190,34 @@ def profile(username):
     i_follow  = bool(query("SELECT 1 FROM follows WHERE follower_id=? AND followee_id=?",
                            (viewer["id"], prof["id"]), one=True))
 
-    # Posts visible to viewer
-    # Only show posts the viewer is actually allowed to see
+    # Posts visible on profile
+    # Super admin sees everything; own profile sees everything;
+    # Others only see NON-anonymous posts
     viewer_visible = ROLE_VISIBLE.get(viewer["role"])
-    if viewer_visible is None:  # super_admin sees all
+    if is_super:  # super_admin sees all including anon
         post_rows = query("SELECT * FROM posts WHERE author_id=? ORDER BY created_at DESC", (prof["id"],))
+    elif is_self:  # viewing your own profile — see all your posts
+        if viewer_visible is None:
+            post_rows = query("SELECT * FROM posts WHERE author_id=? ORDER BY created_at DESC", (prof["id"],))
+        else:
+            placeholders = ",".join("?" * len(viewer_visible))
+            post_rows = query(
+                f"SELECT * FROM posts WHERE author_id=? AND recipient IN ({placeholders}) ORDER BY created_at DESC",
+                (prof["id"], *viewer_visible)
+            )
     else:
-        placeholders = ",".join("?" * len(viewer_visible))
-        post_rows = query(
-            f"SELECT * FROM posts WHERE author_id=? AND recipient IN ({placeholders}) ORDER BY created_at DESC",
-            (prof["id"], *viewer_visible)
-        )
+        # Someone else viewing this profile — hide anonymous posts entirely
+        if viewer_visible is None:
+            post_rows = query(
+                "SELECT * FROM posts WHERE author_id=? AND is_anon=0 ORDER BY created_at DESC",
+                (prof["id"],)
+            )
+        else:
+            placeholders = ",".join("?" * len(viewer_visible))
+            post_rows = query(
+                f"SELECT * FROM posts WHERE author_id=? AND is_anon=0 AND recipient IN ({placeholders}) ORDER BY created_at DESC",
+                (prof["id"], *viewer_visible)
+            )
     posts = [serialise_post(r, viewer["id"]) for r in post_rows]
     post_count = len(posts)
 
@@ -1209,25 +1275,48 @@ def edit_profile():
 @app.route("/follow/<int:uid>", methods=["POST"])
 @login_required
 def follow(uid):
+    from flask import jsonify
     viewer = current_user()
     if viewer["id"] == uid:
         return jsonify({"error": "Cannot follow yourself"}), 400
 
-    exists = query("SELECT 1 FROM follows WHERE follower_id=? AND followee_id=?",
-                   (viewer["id"], uid), one=True)
-    if exists:
-        execute("DELETE FROM follows WHERE follower_id=? AND followee_id=?", (viewer["id"], uid))
+    # Client tells us explicitly what action to take: "follow" or "unfollow"
+    # This prevents double-request toggling — if client sends "follow" twice,
+    # we always end up in "following" state
+    action = request.get_json(silent=True) or {}
+    intent = action.get("action")  # "follow" | "unfollow" | None (legacy toggle)
+
+    exists = bool(query("SELECT 1 FROM follows WHERE follower_id=? AND followee_id=?",
+                        (viewer["id"], uid), one=True))
+
+    if intent == "follow":
+        # Idempotent: ensure following
+        if not exists:
+            execute("INSERT INTO follows (follower_id,followee_id,created_at) VALUES (?,?,?)",
+                    (viewer["id"], uid, _now()))
+            target = query("SELECT * FROM users WHERE id=?", (uid,), one=True)
+            if target:
+                push_notif(uid, f"{get_anon_name(viewer['id'])} started following you",
+                           url_for("profile", username=target["username"]), "follow")
+        following = True
+    elif intent == "unfollow":
+        # Idempotent: ensure not following
+        if exists:
+            execute("DELETE FROM follows WHERE follower_id=? AND followee_id=?", (viewer["id"], uid))
         following = False
     else:
-        execute("INSERT INTO follows (follower_id,followee_id,created_at) VALUES (?,?,?)",
-                (viewer["id"], uid, _now()))
-        following = True
-        # Notify
-        target = query("SELECT * FROM users WHERE id=?", (uid,), one=True)
-        if target:
-            display = get_anon_name(viewer["id"])  # keep follower anon
-            push_notif(uid, f"{display} started following you",
-                       url_for("profile", username=target["username"]), "follow")
+        # Legacy toggle (for non-reels parts of app)
+        if exists:
+            execute("DELETE FROM follows WHERE follower_id=? AND followee_id=?", (viewer["id"], uid))
+            following = False
+        else:
+            execute("INSERT INTO follows (follower_id,followee_id,created_at) VALUES (?,?,?)",
+                    (viewer["id"], uid, _now()))
+            following = True
+            target = query("SELECT * FROM users WHERE id=?", (uid,), one=True)
+            if target:
+                push_notif(uid, f"{get_anon_name(viewer['id'])} started following you",
+                           url_for("profile", username=target["username"]), "follow")
 
     count = query("SELECT COUNT(*) as c FROM follows WHERE followee_id=?", (uid,), one=True)["c"]
     return jsonify({"following": following, "count": count})
@@ -1238,6 +1327,53 @@ def follow(uid):
 @login_required
 def global_search():
     return redirect(url_for("explore"))
+
+@app.route("/api/search-users")
+@login_required
+def api_search_users():
+    from flask import jsonify
+    user = current_user()
+    q    = request.args.get("q", "").strip()
+    if len(q) < 1:
+        return jsonify([])
+    like = f"%{q.lower()}%"
+    rows = query(
+        """SELECT u.id, u.username, u.avatar, u.role
+           FROM users u
+           WHERE u.id != ? AND LOWER(u.username) LIKE ?
+           ORDER BY u.username LIMIT 15""",
+        (user["id"], like)
+    )
+    out = []
+    for r in rows:
+        out.append({
+            "id":       r["id"],
+            "username": r["username"],
+            "avatar":   url_for("serve_media", filename=r["avatar"]) if r.get("avatar") else "",
+            "role":     r["role"],
+        })
+    return jsonify(out)
+
+
+@app.route("/api/get-conversation/<int:uid>")
+@login_required
+def api_get_conversation(uid):
+    from flask import jsonify
+    user = current_user()
+    # Find existing conversation
+    conv = query(
+        """SELECT id FROM conversations
+           WHERE (user_a=? AND user_b=?) OR (user_a=? AND user_b=?)""",
+        (user["id"], uid, uid, user["id"]), one=True
+    )
+    if conv:
+        return jsonify({"conv_id": conv["id"]})
+    # Create new conversation
+    cid = _uid()
+    execute("INSERT INTO conversations (id,user_a,user_b,created_at) VALUES (?,?,?,?)",
+            (cid, user["id"], uid, _now()))
+    return jsonify({"conv_id": cid})
+
 
 @app.route("/explore")
 @login_required
@@ -1663,7 +1799,17 @@ def admin_change_role(uid):
 @login_required
 def reels():
     user = current_user()
-    role = user["role"]
+
+    # Super-admins and admins bypass the limit entirely
+    if user["role"] not in ("super_admin", "admin"):
+        rls = get_reels_status_for_user(user["id"])
+        if not rls["allowed"]:
+            return render_template("reels_blocked.html", rls=rls)
+    else:
+        rls = {"allowed": True, "mode": "unlimited", "remaining_secs": 99999,
+               "limit_secs": 0, "used_secs": 0, "limit_mins": 0}
+
+    role    = user["role"]
     visible = ROLE_VISIBLE.get(role, ["all_school", "announcement"])
 
     if visible is None:
@@ -1678,7 +1824,90 @@ def reels():
         )
 
     reels_list = [serialise_post(r, user["id"]) for r in rows]
-    return render_template("reels.html", reels=reels_list)
+    return render_template("reels.html", reels=reels_list, rls=rls)
+
+
+@app.route("/api/reels/ping", methods=["POST"])
+@login_required
+def reels_ping():
+    """Called every 10s while user is watching reels. Records usage."""
+    from flask import jsonify
+    user = current_user()
+    if user["role"] in ("super_admin", "admin"):
+        return jsonify({"ok": True, "allowed": True, "remaining_secs": 99999})
+
+    rls = get_reels_status_for_user(user["id"])
+    if not rls["allowed"]:
+        return jsonify({"ok": True, "allowed": False, "remaining_secs": 0})
+
+    # Add 10 seconds of usage (ping interval)
+    today  = _now()[:10]
+    secs   = int(request.json.get("secs", 10)) if request.is_json else 10
+    secs   = min(secs, 30)  # cap to prevent abuse
+
+    existing = query(
+        "SELECT id, seconds_used FROM reels_usage WHERE user_id=? AND usage_date=?",
+        (user["id"], today), one=True
+    )
+    if existing:
+        execute(
+            "UPDATE reels_usage SET seconds_used=seconds_used+? WHERE user_id=? AND usage_date=?",
+            (secs, user["id"], today)
+        )
+    else:
+        execute(
+            "INSERT INTO reels_usage (user_id, usage_date, seconds_used) VALUES (?,?,?)",
+            (user["id"], today, secs)
+        )
+
+    rls = get_reels_status_for_user(user["id"])
+    return jsonify({
+        "ok":            True,
+        "allowed":       rls["allowed"],
+        "remaining_secs": rls["remaining_secs"],
+        "used_secs":     rls["used_secs"],
+        "limit_secs":    rls["limit_secs"],
+    })
+
+
+@app.route("/admin/reels-control", methods=["GET", "POST"])
+@login_required
+@roles_required("super_admin")
+def admin_reels_control():
+    from flask import jsonify
+    if request.method == "POST":
+        mode      = request.form.get("mode", "unlimited")
+        limit_str = request.form.get("daily_limit_mins", "10").strip()
+        try:
+            limit = max(1, min(int(limit_str), 1440))
+        except ValueError:
+            limit = 10
+
+        existing = query("SELECT id FROM reels_settings WHERE id=1", one=True)
+        if existing:
+            execute(
+                "UPDATE reels_settings SET mode=?,daily_limit_mins=?,updated_at=?,updated_by=? WHERE id=1",
+                (mode, limit, _now(), current_user()["id"])
+            )
+        else:
+            execute(
+                "INSERT INTO reels_settings (id,mode,daily_limit_mins,updated_at,updated_by) VALUES (1,?,?,?,?)",
+                (mode, limit, _now(), current_user()["id"])
+            )
+        flash(f"Reels set to: {mode}" + (f" ({limit} mins/day)" if mode=="timed" else ""), "success")
+        return redirect(url_for("admin_reels_control"))
+
+    settings = get_reels_settings()
+    # Usage stats for today
+    today = _now()[:10]
+    usage_today = query(
+        """SELECT u.username, ru.seconds_used
+           FROM reels_usage ru JOIN users u ON ru.user_id=u.id
+           WHERE ru.usage_date=?
+           ORDER BY ru.seconds_used DESC LIMIT 20""",
+        (today,)
+    )
+    return render_template("admin_reels.html", settings=settings, usage_today=usage_today, today=today)
 
 
 @app.route("/media/<path:filename>")
@@ -2445,6 +2674,64 @@ def delete_class_reply(rid):
 
 # ─── Entrypoint ───────────────────────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════════════════
+# ONLINE PRESENCE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/presence/ping", methods=["POST"])
+@login_required
+def presence_ping():
+    """Called every 30s by all logged-in users to mark them online."""
+    from flask import jsonify
+    user = current_user()
+    execute("""
+        INSERT INTO user_presence (user_id, last_seen, status)
+        VALUES (?, ?, 'online')
+        ON CONFLICT (user_id) DO UPDATE SET last_seen=EXCLUDED.last_seen, status='online'
+    """, (_now(), ))
+    # Fix: proper upsert
+    existing = query("SELECT user_id FROM user_presence WHERE user_id=?", (user["id"],), one=True)
+    if existing:
+        execute("UPDATE user_presence SET last_seen=?, status='online' WHERE user_id=?", (_now(), user["id"]))
+    else:
+        execute("INSERT INTO user_presence (user_id, last_seen, status) VALUES (?,?,'online')", (user["id"], _now()))
+    return jsonify({"ok": True})
+
+
+@app.route("/api/presence/status")
+@login_required
+def presence_status():
+    """Returns online status of users the current user follows."""
+    from flask import jsonify
+    user = current_user()
+    # Get online users followed by current user (seen in last 2 minutes = online, 5 min = away)
+    rows = query("""
+        SELECT up.user_id, up.last_seen, up.status,
+               u.username
+        FROM user_presence up
+        JOIN users u ON up.user_id = u.id
+        JOIN follows f ON f.followee_id = up.user_id AND f.follower_id = ?
+        WHERE up.last_seen > ?
+    """, (user["id"], _now()[:11] + "00:00:00"))  # today
+    
+    result = {}
+    now_ts = __import__('datetime').datetime.utcnow()
+    for r in rows:
+        try:
+            last = __import__('datetime').datetime.strptime(r["last_seen"][:19], "%Y-%m-%d %H:%M:%S")
+            diff = (now_ts - last).total_seconds()
+            if diff < 120:
+                status = "online"
+            elif diff < 300:
+                status = "away"
+            else:
+                continue  # skip offline
+            result[str(r["user_id"])] = status
+        except Exception:
+            pass
+    return jsonify(result)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # CALLS (WebRTC P2P — signalling via DB polling)
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -2574,6 +2861,50 @@ def api_incoming_call():
 # STATUSES (24-hr Stories)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# ─── Reels control helpers ───────────────────────────────────────────────────
+def get_reels_settings():
+    """Return reels settings row, seeding defaults if missing."""
+    s = query("SELECT * FROM reels_settings WHERE id=1", one=True)
+    if not s:
+        execute(
+            "INSERT INTO reels_settings (id,mode,daily_limit_mins,updated_at) VALUES (1,'unlimited',10,?)",
+            (_now(),)
+        )
+        s = query("SELECT * FROM reels_settings WHERE id=1", one=True)
+    return s
+
+def get_reels_status_for_user(user_id):
+    """Return dict: allowed, mode, used_secs, limit_secs, remaining_secs"""
+    s    = get_reels_settings()
+    mode = s["mode"]  # 'unlimited' | 'timed' | 'disabled'
+
+    if mode == "disabled":
+        return {"allowed": False, "mode": mode, "used_secs": 0,
+                "limit_secs": 0, "remaining_secs": 0, "limit_mins": 0}
+
+    if mode == "unlimited":
+        return {"allowed": True, "mode": mode, "used_secs": 0,
+                "limit_secs": 0, "remaining_secs": 99999, "limit_mins": 0}
+
+    # timed mode
+    today = _now()[:10]
+    usage = query(
+        "SELECT seconds_used FROM reels_usage WHERE user_id=? AND usage_date=?",
+        (user_id, today), one=True
+    )
+    used  = usage["seconds_used"] if usage else 0
+    limit = s["daily_limit_mins"] * 60
+    remaining = max(0, limit - used)
+    return {
+        "allowed":       remaining > 0,
+        "mode":          mode,
+        "used_secs":     used,
+        "limit_secs":    limit,
+        "remaining_secs": remaining,
+        "limit_mins":    s["daily_limit_mins"],
+    }
+
+
 def _status_expiry():
     """Return ISO timestamp 24 hours from now."""
     from datetime import datetime, timedelta
@@ -2600,14 +2931,43 @@ def _active_statuses_for(viewer_id):
             groups[uid] = {
                 "user_id": uid,
                 "username": r["username"],
-                "avatar": r["avatar"],
+                "avatar": r["avatar"] or "",
                 "statuses": [],
                 "all_viewed": True,
+                "is_mine": uid == viewer_id,
             }
-        groups[uid]["statuses"].append(r)
+        # Convert row to plain dict for JSON serialisation
+        s = {
+            "id":         r["id"],
+            "text":       r["text"] or "",
+            "media_path": r["media_path"] or "",
+            "media_type": r["media_type"] or "text",
+            "bg_color":   r["bg_color"] or "#2e3192",
+            "created_at": r["created_at"],
+            "expires_at": r["expires_at"],
+            "view_count": r["view_count"] or 0,
+            "i_viewed":   bool(r["i_viewed"]),
+            "is_mine":    r["user_id"] == viewer_id,
+        }
+        groups[uid]["statuses"].append(s)
         if not r["i_viewed"]:
             groups[uid]["all_viewed"] = False
-    return list(groups.values())
+    # Put own statuses first
+    result = list(groups.values())
+    result.sort(key=lambda g: (0 if g["is_mine"] else 1))
+    return result
+
+
+@app.route("/status-wall")
+@login_required
+def status_wall():
+    user   = current_user()
+    groups = _active_statuses_for(user["id"])
+    my_statuses = query(
+        "SELECT * FROM statuses WHERE user_id=? AND expires_at>? ORDER BY created_at DESC",
+        (user["id"], _now())
+    )
+    return render_template("status_wall.html", groups=groups, my_statuses=my_statuses)
 
 
 @app.route("/status/post", methods=["POST"])
@@ -2662,28 +3022,51 @@ def status_delete(sid):
     return redirect(url_for("feed"))
 
 
+@app.route("/statuses")
+@login_required
+def statuses_page():
+    user   = current_user()
+    raw_groups = _active_statuses_for(user["id"])
+    # Resolve media URLs for template
+    groups = []
+    for g in raw_groups:
+        g2 = dict(g)
+        g2["avatar_url"] = url_for("serve_media", filename=g["avatar"]) if g.get("avatar") else ""
+        sts = []
+        for s in g["statuses"]:
+            s2 = dict(s)
+            s2["media_url"] = url_for("serve_media", filename=s["media_path"]) if s.get("media_path") else ""
+            sts.append(s2)
+        g2["statuses"] = sts
+        groups.append(g2)
+    my_statuses = query(
+        "SELECT * FROM statuses WHERE user_id=? AND expires_at>? ORDER BY created_at DESC",
+        (user["id"], _now())
+    )
+    return render_template("statuses.html", groups=groups, my_statuses=my_statuses)
+
+
 @app.route("/api/statuses")
 @login_required
 def api_statuses():
     from flask import jsonify
     user   = current_user()
     groups = _active_statuses_for(user["id"])
-    # Serialize
     out = []
     for g in groups:
         sts = []
         for s in g["statuses"]:
             sts.append({
-                "id":        s["id"],
-                "text":      s["text"],
+                "id":         s["id"],
+                "text":       s["text"],
                 "media_path": url_for("serve_media", filename=s["media_path"]) if s["media_path"] else "",
                 "media_type": s["media_type"],
-                "bg_color":  s["bg_color"],
+                "bg_color":   s["bg_color"],
                 "created_at": s["created_at"],
                 "expires_at": s["expires_at"],
                 "view_count": s["view_count"],
-                "i_viewed":  bool(s["i_viewed"]),
-                "is_mine":   s["user_id"] == user["id"],
+                "i_viewed":   s["i_viewed"],
+                "is_mine":    s["is_mine"],
             })
         out.append({
             "user_id":    g["user_id"],
@@ -2691,9 +3074,28 @@ def api_statuses():
             "avatar":     url_for("serve_media", filename=g["avatar"]) if g["avatar"] else "",
             "all_viewed": g["all_viewed"],
             "statuses":   sts,
-            "is_mine":    g["user_id"] == user["id"],
+            "is_mine":    g["is_mine"],
         })
     return jsonify(out)
+
+
+@app.route("/api/post/<pid>/author")
+@login_required
+@roles_required("super_admin")
+def api_post_author(pid):
+    """Super-admin only: reveal who posted an anonymous post."""
+    from flask import jsonify
+    post = query("SELECT * FROM posts WHERE id=?", (pid,), one=True)
+    if not post:
+        return jsonify({"error": "Not found"}), 404
+    author = query("SELECT id, username, name, role, year_group FROM users WHERE id=?",
+                   (post["author_id"],), one=True)
+    return jsonify({
+        "username":   author["username"],
+        "name":       author["name"],
+        "role":       author["role"],
+        "year_group": author["year_group"] or "",
+    })
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
