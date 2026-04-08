@@ -1910,6 +1910,15 @@ def admin_reels_control():
     return render_template("admin_reels.html", settings=settings, usage_today=usage_today, today=today)
 
 
+@app.route("/favicon.ico")
+def favicon():
+    """Return a simple favicon to stop 500 errors."""
+    from flask import Response
+    # Simple 1x1 transparent ICO
+    ico = b'\x00\x00\x01\x00\x01\x00\x01\x01\x00\x00\x01\x00\x18\x00('           b'\x00\x00\x00\x16\x00\x00\x00(\x00\x00\x00\x01\x00\x00\x00'           b'\x02\x00\x00\x00\x01\x00\x18\x00\x00\x00\x00\x00\x04\x00'           b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'           b'\x00\x00\x00\x00\x2e\x31\x92\x00\xff\xff\xff\x00'
+    return Response(ico, mimetype='image/x-icon')
+
+
 @app.route("/media/<path:filename>")
 def serve_media(filename):
     # Legacy route — Cloudinary files are served directly by URL.
@@ -2680,20 +2689,20 @@ def delete_class_reply(rid):
 @app.route("/api/presence/ping", methods=["POST"])
 @login_required
 def presence_ping():
-    """Called every 30s by all logged-in users to mark them online."""
+    """Called every 25s by all logged-in users to mark them online."""
     from flask import jsonify
     user = current_user()
-    execute("""
-        INSERT INTO user_presence (user_id, last_seen, status)
-        VALUES (?, ?, 'online')
-        ON CONFLICT (user_id) DO UPDATE SET last_seen=EXCLUDED.last_seen, status='online'
-    """, (_now(), ))
-    # Fix: proper upsert
     existing = query("SELECT user_id FROM user_presence WHERE user_id=?", (user["id"],), one=True)
     if existing:
-        execute("UPDATE user_presence SET last_seen=?, status='online' WHERE user_id=?", (_now(), user["id"]))
+        execute("UPDATE user_presence SET last_seen=?, status='online' WHERE user_id=?",
+                (_now(), user["id"]))
     else:
-        execute("INSERT INTO user_presence (user_id, last_seen, status) VALUES (?,?,'online')", (user["id"], _now()))
+        try:
+            execute("INSERT INTO user_presence (user_id, last_seen, status) VALUES (?,?,'online')",
+                    (user["id"], _now()))
+        except Exception:
+            execute("UPDATE user_presence SET last_seen=?, status='online' WHERE user_id=?",
+                    (_now(), user["id"]))
     return jsonify({"ok": True})
 
 

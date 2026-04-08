@@ -769,19 +769,18 @@
     });
   });
 
-  // ── Like / Dislike — debounced, single request per tap ─────────────────────
-  const _likeTimer = {};
-
+  // ── Like / Dislike — single-request lock on button element ─────────────────
   window.likeReel = function(btn, type) {
+    // Hard lock: if request already in flight for this button, ignore
+    if (btn._busy) return;
+    btn._busy = true;
+
     const pid   = btn.dataset.react;
     const emoji = btn.dataset.emoji;
-    if (!pid) return;
-
     const cls   = type === 'like' ? 'loved' : 'disliked';
     const svg   = btn.querySelector('svg');
     const lbl   = btn.querySelector('.reel-action-label');
 
-    // Toggle visual state immediately
     const isNowOn = !btn.classList.contains(cls);
     btn.classList.toggle(cls, isNowOn);
 
@@ -797,34 +796,28 @@
       svg.setAttribute('stroke', isNowOn ? '#64a0ff' : 'white');
     }
 
-    // Debounce — cancel previous pending request for same post+emoji
-    clearTimeout(_likeTimer[pid + emoji]);
-    _likeTimer[pid + emoji] = setTimeout(function() {
-      fetch('/post/' + pid + '/react', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emoji: emoji })
-      }).then(function(r) { return r.json(); }).then(function(d) {
-        // Sync count from server
-        if (type === 'like' && lbl) {
-          lbl.textContent = d.count > 0 ? String(d.count) : '';
-        }
-        // Sync state — server is truth
-        btn.classList.toggle(cls, d.liked);
-        if (type === 'like') {
-          svg.setAttribute('fill',   d.liked ? '#ed4956' : 'none');
-          svg.setAttribute('stroke', d.liked ? '#ed4956' : 'white');
-        }
-      }).catch(function() {
-        // Network error — revert
-        btn.classList.toggle(cls, !isNowOn);
-        if (type === 'like') {
-          svg.setAttribute('fill',   !isNowOn ? '#ed4956' : 'none');
-          svg.setAttribute('stroke', !isNowOn ? '#ed4956' : 'white');
-        }
-      });
-    }, 300);
+    fetch('/post/' + pid + '/react', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emoji: emoji })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (type === 'like' && lbl) lbl.textContent = d.count > 0 ? String(d.count) : '';
+      btn.classList.toggle(cls, d.liked);
+      if (type === 'like') {
+        svg.setAttribute('fill',   d.liked ? '#ed4956' : 'none');
+        svg.setAttribute('stroke', d.liked ? '#ed4956' : 'white');
+      }
+    }).catch(function() {
+      btn.classList.toggle(cls, !isNowOn);
+      if (type === 'like') {
+        svg.setAttribute('fill',   !isNowOn ? '#ed4956' : 'none');
+        svg.setAttribute('stroke', !isNowOn ? '#ed4956' : 'white');
+      }
+    }).finally(function() {
+      // Unlock after 600ms — prevents accidental double-tap
+      setTimeout(function() { btn._busy = false; }, 600);
+    });
   };
 
   // ── Follow — direct named function, prevents any interception ──────────────
@@ -844,47 +837,41 @@
     });
   }
 
-  // ── Debounce timer per uid so rapid taps coalesce into one request ─────────
-  const _followTimer = {};
-
   window.reelFollow = function(btn) {
-    const uid = btn.dataset.followUid;
-    if (!uid) return;
+    // Hard lock on the button element itself — prevents any double-fire
+    if (btn._busy) return;
+    btn._busy = true;
 
-    // Read current VISUAL state to decide intent
+    const uid = btn.dataset.followUid;
+    if (!uid) { btn._busy = false; return; }
+
     const wantsFollow = !btn.classList.contains('following');
     const action = wantsFollow ? 'follow' : 'unfollow';
 
-    // Apply optimistic state to ALL buttons for this user immediately
+    // Update ALL buttons for this user immediately
     applyFollowState(uid, wantsFollow);
 
-    // Cancel any pending request for this uid (debounce rapid taps)
-    clearTimeout(_followTimer[uid]);
-
-    // Send request after 400ms — if user taps again, timer resets
-    _followTimer[uid] = setTimeout(function() {
-      if (_followBusy[uid]) return;
-      _followBusy[uid] = true;
-
-      fetch('/follow/' + uid, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: action })
-      })
-        .then(function(r) { return r.json(); })
-        .then(function(d) {
-          // Reconcile with server truth
-          applyFollowState(uid, d.following);
-        })
-        .catch(function() {
-          // Revert on network failure
-          applyFollowState(uid, !wantsFollow);
-        })
-        .finally(function() {
-          _followBusy[uid] = false;
+    fetch('/follow/' + uid, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      applyFollowState(uid, d.following);
+    })
+    .catch(function() {
+      applyFollowState(uid, !wantsFollow);
+    })
+    .finally(function() {
+      // Unlock all buttons for this uid after 800ms
+      setTimeout(function() {
+        document.querySelectorAll('[data-follow-uid="' + uid + '"]').forEach(function(b) {
+          b._busy = false;
         });
-    }, 400);
+      }, 800);
+    });
   };
 
   // ── Caption expand ────────────────────────────────────────────────────────
