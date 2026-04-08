@@ -874,30 +874,38 @@ def index():
 
 @app.route("/login", methods=["GET","POST"])
 def login():
+    # Always show login page — don't silently redirect (causes ghost sessions on shared devices)
     if "user_id" in session:
-        return redirect(url_for("feed"))
+        # Clear any stale session before showing the form
+        session.clear()
     if request.method == "POST":
         uname = request.form.get("username","").strip().lower()
         pw    = request.form.get("password","")
         user  = query("SELECT * FROM users WHERE LOWER(username)=?", (uname,), one=True)
         if user and user["password"] == _hash(pw):
-            session.permanent = True
-            session.update({"user_id": user["id"], "role": user["role"],
-                            "username": user["username"], "name": user["name"]})
+            # NOT permanent — session dies when browser closes
+            session.permanent = False
+            session["user_id"]  = user["id"]
+            session["role"]     = user["role"]
+            session["username"] = user["username"]
+            session["name"]     = user["name"]
+            session.modified    = True
             return redirect(request.args.get("next") or url_for("feed"))
         flash("Invalid username or password", "error")
     return render_template("login.html")
 
 @app.route("/logout")
 def logout():
-    # Clear everything — prevent session fixation on shared devices
+    # Nuclear clear — wipe everything
     session.clear()
     session.modified = True
-    resp = redirect(url_for("login"))
-    # Expire the session cookie immediately
-    resp.set_cookie(app.config.get("SESSION_COOKIE_NAME", "session"),
-                    "", expires=0, max_age=0,
-                    secure=False, httponly=True, samesite="Lax")
+    # Re-generate a fresh empty session
+    from flask import make_response
+    resp = make_response(redirect(url_for("login")))
+    # Kill the session cookie on the browser side
+    cookie_name = app.config.get("SESSION_COOKIE_NAME", "session")
+    resp.set_cookie(cookie_name, "", expires=0, max_age=0,
+                    httponly=True, samesite="Lax")
     return resp
 
 # ─── Feed ─────────────────────────────────────────────────────────────────────
@@ -1048,9 +1056,10 @@ def react_post(pid):
         try:
             execute("INSERT INTO reactions (post_id,user_id,emoji) VALUES (?,?,?)",
                     (pid, user["id"], emoji))
+            liked = True
         except Exception:
-            pass
-        liked = True
+            # Duplicate — treat as already liked (don't toggle again)
+            liked = True
         # Notify post author
         post = query("SELECT * FROM posts WHERE id=?", (pid,), one=True)
         if post and post["author_id"] != user["id"]:
@@ -1266,25 +1275,48 @@ def edit_profile():
 @app.route("/follow/<int:uid>", methods=["POST"])
 @login_required
 def follow(uid):
+    from flask import jsonify
     viewer = current_user()
     if viewer["id"] == uid:
         return jsonify({"error": "Cannot follow yourself"}), 400
 
-    exists = query("SELECT 1 FROM follows WHERE follower_id=? AND followee_id=?",
-                   (viewer["id"], uid), one=True)
-    if exists:
-        execute("DELETE FROM follows WHERE follower_id=? AND followee_id=?", (viewer["id"], uid))
+    # Client tells us explicitly what action to take: "follow" or "unfollow"
+    # This prevents double-request toggling — if client sends "follow" twice,
+    # we always end up in "following" state
+    action = request.get_json(silent=True) or {}
+    intent = action.get("action")  # "follow" | "unfollow" | None (legacy toggle)
+
+    exists = bool(query("SELECT 1 FROM follows WHERE follower_id=? AND followee_id=?",
+                        (viewer["id"], uid), one=True))
+
+    if intent == "follow":
+        # Idempotent: ensure following
+        if not exists:
+            execute("INSERT INTO follows (follower_id,followee_id,created_at) VALUES (?,?,?)",
+                    (viewer["id"], uid, _now()))
+            target = query("SELECT * FROM users WHERE id=?", (uid,), one=True)
+            if target:
+                push_notif(uid, f"{get_anon_name(viewer['id'])} started following you",
+                           url_for("profile", username=target["username"]), "follow")
+        following = True
+    elif intent == "unfollow":
+        # Idempotent: ensure not following
+        if exists:
+            execute("DELETE FROM follows WHERE follower_id=? AND followee_id=?", (viewer["id"], uid))
         following = False
     else:
-        execute("INSERT INTO follows (follower_id,followee_id,created_at) VALUES (?,?,?)",
-                (viewer["id"], uid, _now()))
-        following = True
-        # Notify
-        target = query("SELECT * FROM users WHERE id=?", (uid,), one=True)
-        if target:
-            display = get_anon_name(viewer["id"])  # keep follower anon
-            push_notif(uid, f"{display} started following you",
-                       url_for("profile", username=target["username"]), "follow")
+        # Legacy toggle (for non-reels parts of app)
+        if exists:
+            execute("DELETE FROM follows WHERE follower_id=? AND followee_id=?", (viewer["id"], uid))
+            following = False
+        else:
+            execute("INSERT INTO follows (follower_id,followee_id,created_at) VALUES (?,?,?)",
+                    (viewer["id"], uid, _now()))
+            following = True
+            target = query("SELECT * FROM users WHERE id=?", (uid,), one=True)
+            if target:
+                push_notif(uid, f"{get_anon_name(viewer['id'])} started following you",
+                           url_for("profile", username=target["username"]), "follow")
 
     count = query("SELECT COUNT(*) as c FROM follows WHERE followee_id=?", (uid,), one=True)["c"]
     return jsonify({"following": following, "count": count})
