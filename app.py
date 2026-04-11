@@ -110,35 +110,102 @@ if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # ─── DB helpers (PostgreSQL) ──────────────────────────────────────────────────
+def _make_conn():
+    """Open a new DB connection with retry for SSL drops."""
+    import time
+    last_err = None
+    for attempt in range(4):
+        try:
+            conn = psycopg2.connect(
+                DATABASE_URL,
+                cursor_factory=psycopg2.extras.RealDictCursor,
+                connect_timeout=10,
+                keepalives=1,
+                keepalives_idle=30,
+                keepalives_interval=10,
+                keepalives_count=5,
+            )
+            conn.autocommit = False
+            return conn
+        except psycopg2.OperationalError as e:
+            last_err = e
+            if attempt < 3:
+                time.sleep(0.5 * (attempt + 1))
+    raise last_err
+
+
 def get_db():
-    if "db" not in g:
-        g.db = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
-        g.db.autocommit = False
-    return g.db
+    db = g.get("db")
+    if db is None:
+        db = _make_conn()
+        g.db = db
+    else:
+        # Check if connection is still alive, reconnect if not
+        try:
+            db.cursor().execute("SELECT 1")
+        except Exception:
+            try:
+                db.close()
+            except Exception:
+                pass
+            db = _make_conn()
+            g.db = db
+    return db
+
 
 @app.teardown_appcontext
 def close_db(exc=None):
     db = g.pop("db", None)
     if db:
-        db.close()
+        try:
+            db.close()
+        except Exception:
+            pass
+
 
 def _pg(sql):
     """Convert SQLite ? placeholders to PostgreSQL %s placeholders."""
     return sql.replace("?", "%s")
 
+
 def query(sql, args=(), one=False):
-    db  = get_db()
-    cur = db.cursor()
-    cur.execute(_pg(sql), args)
-    rv = cur.fetchall()
-    return (rv[0] if rv else None) if one else rv
+    for attempt in range(3):
+        try:
+            db  = get_db()
+            cur = db.cursor()
+            cur.execute(_pg(sql), args)
+            rv = cur.fetchall()
+            return (rv[0] if rv else None) if one else rv
+        except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+            # Connection dropped — clear and retry
+            try:
+                g.pop("db", None)
+            except Exception:
+                pass
+            if attempt == 2:
+                raise
+    return (None if one else [])
+
 
 def execute(sql, args=()):
-    db  = get_db()
-    cur = db.cursor()
-    cur.execute(_pg(sql), args)
-    db.commit()
-    return cur
+    for attempt in range(3):
+        try:
+            db  = get_db()
+            cur = db.cursor()
+            cur.execute(_pg(sql), args)
+            db.commit()
+            return cur
+        except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            try:
+                g.pop("db", None)
+            except Exception:
+                pass
+            if attempt == 2:
+                raise
 
 def init_db():
     """Create all tables (PostgreSQL) and seed super-admin account."""
@@ -881,7 +948,11 @@ def login():
     if request.method == "POST":
         uname = request.form.get("username","").strip().lower()
         pw    = request.form.get("password","")
-        user  = query("SELECT * FROM users WHERE LOWER(username)=?", (uname,), one=True)
+        try:
+            user = query("SELECT * FROM users WHERE LOWER(username)=?", (uname,), one=True)
+        except Exception:
+            flash("Database is temporarily unavailable. Please wait a moment and try again.", "error")
+            return render_template("login.html")
         if user and user["password"] == _hash(pw):
             # NOT permanent — session dies when browser closes
             session.permanent = False
