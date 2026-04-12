@@ -111,7 +111,7 @@ if DATABASE_URL.startswith("postgres://"):
 
 # ─── DB helpers (PostgreSQL) ──────────────────────────────────────────────────
 def _make_conn():
-    """Open a new DB connection with retry for SSL drops."""
+    """Open a new DB connection with retry. Works with Supabase transaction pooler."""
     import time
     last_err = None
     for attempt in range(4):
@@ -125,7 +125,9 @@ def _make_conn():
                 keepalives_interval=10,
                 keepalives_count=5,
             )
-            conn.autocommit = False
+            # autocommit=True is REQUIRED for Supabase transaction pooler (port 6543)
+            # It also works fine with direct connections (port 5432)
+            conn.autocommit = True
             return conn
         except psycopg2.OperationalError as e:
             last_err = e
@@ -193,11 +195,15 @@ def execute(sql, args=()):
             db  = get_db()
             cur = db.cursor()
             cur.execute(_pg(sql), args)
-            db.commit()
+            # With autocommit=True, each statement commits automatically
+            # db.commit() is a no-op but kept for compatibility
+            if not db.autocommit:
+                db.commit()
             return cur
         except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
             try:
-                db.rollback()
+                if not db.autocommit:
+                    db.rollback()
             except Exception:
                 pass
             try:
@@ -209,7 +215,9 @@ def execute(sql, args=()):
 
 def init_db():
     """Create all tables (PostgreSQL) and seed super-admin account."""
-    db  = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    db  = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor,
+                          connect_timeout=10)
+    db.autocommit = True  # required for Supabase transaction pooler
     cur = db.cursor()
 
     cur.execute("""
@@ -698,13 +706,11 @@ def init_db():
         "ALTER TABLE messages       ADD COLUMN IF NOT EXISTS msg_type    TEXT DEFAULT 'text'",
     ]
     # Each migration needs its own transaction in PostgreSQL
-    db.commit()  # commit table creations first
+    # autocommit=True means each statement is already committed automatically
     for sql in migrations:
         try:
             cur.execute(sql)
-            db.commit()
         except Exception as me:
-            db.rollback()
             print(f"[migration] skipped: {sql[:60]} ({me})")
 
     cur.close()
