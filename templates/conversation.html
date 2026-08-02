@@ -16,6 +16,19 @@
   background: #efeae2;
   position: relative;
 }
+/* On mobile, the app has a sticky top bar and a fixed bottom nav bar that
+   normal pages leave room for — but this chat screen is meant to be a
+   full-screen, edge-to-edge experience (like a native chat app), so instead
+   of leaving room for them, pin it over the top of everything. Without this,
+   the fixed bottom nav sits on top of the message input box, hiding it. */
+@media (max-width: 820px) {
+  .page-center.wa-page {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 300;
+  }
+  .mobile-nav, .mobile-topbar { display: none !important; }
+}
 
 /* ── Header ── */
 .wa-header {

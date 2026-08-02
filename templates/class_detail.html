@@ -147,6 +147,25 @@
       ← All Classes
     </a>
     {% if cu.role in ('teacher','admin','super_admin') and (cu.role != 'teacher' or cls.teacher_id == cu.id) %}
+      {% if live_session %}
+      <a href="{{ url_for('live_class_room', cid=cls.id) }}" class="btn" style="background:var(--red);color:#fff;font-size:13px;display:inline-flex;align-items:center;gap:6px">
+        <span style="width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;animation:eia-live-pulse 1.4s infinite"></span>
+        Rejoin live class
+      </a>
+      {% else %}
+      <form method="POST" action="{{ url_for('live_class_start', cid=cls.id) }}">
+        <button type="submit" class="btn" style="background:var(--red);color:#fff;font-size:13px">
+          🔴 Go Live
+        </button>
+      </form>
+      {% endif %}
+    {% elif live_session %}
+      <a href="{{ url_for('live_class_room', cid=cls.id) }}" class="btn" style="background:var(--red);color:#fff;font-size:13px;display:inline-flex;align-items:center;gap:6px">
+        <span style="width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;animation:eia-live-pulse 1.4s infinite"></span>
+        Join live class
+      </a>
+    {% endif %}
+    {% if cu.role in ('teacher','admin','super_admin') and (cu.role != 'teacher' or cls.teacher_id == cu.id) %}
     <form method="POST" action="{{ url_for('delete_class', cid=cls.id) }}"
           onsubmit="return confirm('Permanently delete this class and all its posts?')">
       <button type="submit" class="btn btn-red" style="font-size:13px">Delete Class</button>
@@ -154,6 +173,9 @@
     {% endif %}
   </div>
 </div>
+<style>
+@keyframes eia-live-pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+</style>
 
 <!-- Quick Access Feature Links -->
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:12px;margin-bottom:24px">
