@@ -63,6 +63,17 @@ socket.on("join_approved", () => {
   socket.emit("live_join", { room_code: roomCode });
 });
 
+socket.on("waiting_for_host", () => {
+  window.dispatchEvent(new CustomEvent("waiting-for-host"));
+});
+
+socket.on("join_denied", () => {
+  window.dispatchEvent(new CustomEvent("join-denied"));
+});
+
+socket.on("join_request", (data) => {
+  window.dispatchEvent(new CustomEvent("join-request", { detail: data }));
+});
 socket.on("live_class_ended", () => {
   window.location.href = window.ROOM_CONFIG.classUrl;
 });

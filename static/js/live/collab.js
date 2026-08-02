@@ -3,6 +3,73 @@ document.addEventListener("DOMContentLoaded", () => {
   const { roomCode, isHost, userName } = window.ROOM_CONFIG;
 
   /* =========================================================
+     Waiting room / lobby
+     ========================================================= */
+  const waitingOverlay = document.getElementById("waiting-overlay");
+  const pendingList = document.getElementById("pending-list");
+  const pendingCountBadge = document.getElementById("pending-count");
+
+  window.addEventListener("waiting-for-host", () => {
+    if (waitingOverlay) waitingOverlay.classList.add("show");
+  });
+
+  window.addEventListener("admitted", () => {
+    if (waitingOverlay) waitingOverlay.classList.remove("show");
+  });
+
+  window.addEventListener("join-denied", () => {
+    if (waitingOverlay) {
+      waitingOverlay.innerHTML = `
+        <div class="waiting-box">
+          <h3>Access denied</h3>
+          <p>The teacher didn't admit you to this class.</p>
+          <a class="btn btn-primary btn-sm" href="${window.ROOM_CONFIG.classUrl}">Back to class</a>
+        </div>`;
+      waitingOverlay.classList.add("show");
+    }
+  });
+
+  const pendingRequests = new Map(); // sid -> name
+
+  function renderPendingList() {
+    if (!pendingList) return;
+    pendingList.innerHTML = "";
+    if (pendingCountBadge) {
+      pendingCountBadge.textContent = pendingRequests.size;
+      pendingCountBadge.style.display = pendingRequests.size ? "inline-flex" : "none";
+    }
+    pendingRequests.forEach((name, sid) => {
+      const row = document.createElement("div");
+      row.className = "pending-row";
+      row.innerHTML = `
+        <span class="pending-name"></span>
+        <div class="pending-actions">
+          <button class="btn btn-primary btn-sm" data-action="admit">Admit</button>
+          <button class="btn btn-ghost btn-sm" data-action="deny">Deny</button>
+        </div>`;
+      row.querySelector(".pending-name").textContent = name;
+      row.querySelector('[data-action="admit"]').addEventListener("click", () => {
+        socket.emit("live_admit_participant", { room_code: roomCode, sid });
+        pendingRequests.delete(sid);
+        renderPendingList();
+      });
+      row.querySelector('[data-action="deny"]').addEventListener("click", () => {
+        socket.emit("live_deny_participant", { room_code: roomCode, sid });
+        pendingRequests.delete(sid);
+        renderPendingList();
+      });
+      pendingList.appendChild(row);
+    });
+  }
+
+  if (isHost) {
+    window.addEventListener("join-request", (e) => {
+      pendingRequests.set(e.detail.sid, e.detail.name);
+      renderPendingList();
+    });
+  }
+
+  /* =========================================================
      Participants panel
      ========================================================= */
   const participantsPanel = document.getElementById("participants-panel");

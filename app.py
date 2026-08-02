@@ -109,7 +109,7 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
 # ─── Live Class (ConsultMeet-style video hosting) ─────────────────────────────
 # threading async mode keeps this dependency-light (no eventlet/gevent needed);
 # works fine behind gunicorn's gthread worker class (see Procfile).
-# NOTE: live-class signaling state (_LIVE_CONNECTED / _LIVE_RECORDING,
+# NOTE: live-class signaling state (_LIVE_CONNECTED / _LIVE_WAITING / _LIVE_RECORDING,
 # defined further down) lives in plain in-process dicts, so this only works
 # correctly with a single gunicorn worker (--workers 1, already the case here).
 # If this is ever scaled beyond one worker/dyno, that state needs to move to
@@ -3046,6 +3046,7 @@ def live_class_notes(cid):
 # reactions, hand-raise, waiting-room admission, recording status).
 
 _LIVE_CONNECTED = {}  # sid -> {"room_code","class_id","session_id","user_id","name","is_host"}
+_LIVE_WAITING = {}    # room_code -> { sid: name }
 _LIVE_RECORDING = {}  # room_code -> bool
 
 
@@ -3074,12 +3075,49 @@ def live_handle_request_to_join(data):
     if not cls or not _is_class_member(user, cls):
         return
 
-    # Unlike a general-purpose meeting tool, a live class already only lets
-    # verified enrolled members (checked above) request to join in the first
-    # place — so there's no one left to vet, and gating behind a manual
-    # "admit" click just risks the teacher not noticing a request and the
-    # student being stuck staring at a blank waiting screen. Let them straight in.
-    socket_emit("join_approved", {})
+    sid = request.sid
+    is_host = live_sess["host_id"] == uid
+
+    if is_host:
+        socket_emit("join_approved", {})
+        return
+
+    host_sid = _live_host_sid_for_room(room_code)
+    if not host_sid:
+        socket_emit("join_approved", {})
+        return
+
+    _LIVE_WAITING.setdefault(room_code, {})[sid] = user["username"]
+    socket_emit("join_request", {"sid": sid, "name": user["username"]}, room=host_sid)
+    socket_emit("waiting_for_host", {})
+
+
+@socketio.on("live_admit_participant")
+def live_handle_admit(data):
+    room_code = data.get("room_code")
+    target_sid = data.get("sid")
+    uid = session.get("user_id")
+    if not uid or not target_sid:
+        return
+    live_sess = _live_session_for_room(room_code)
+    if not live_sess or live_sess["host_id"] != uid:
+        return
+    _LIVE_WAITING.get(room_code, {}).pop(target_sid, None)
+    socket_emit("join_approved", {}, room=target_sid)
+
+
+@socketio.on("live_deny_participant")
+def live_handle_deny(data):
+    room_code = data.get("room_code")
+    target_sid = data.get("sid")
+    uid = session.get("user_id")
+    if not uid or not target_sid:
+        return
+    live_sess = _live_session_for_room(room_code)
+    if not live_sess or live_sess["host_id"] != uid:
+        return
+    _LIVE_WAITING.get(room_code, {}).pop(target_sid, None)
+    socket_emit("join_denied", {}, room=target_sid)
 
 
 @socketio.on("live_join")
@@ -3220,6 +3258,8 @@ def live_handle_remove_participant(data):
 def live_handle_disconnect():
     sid = request.sid
 
+    for pending in _LIVE_WAITING.values():
+        pending.pop(sid, None)
     info = _LIVE_CONNECTED.pop(sid, None)
     if not info:
         return

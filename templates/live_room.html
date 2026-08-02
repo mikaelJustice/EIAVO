@@ -95,6 +95,7 @@
   </button>
   <button class="ctrl-btn" id="btn-participants" title="Participants">
     <span class="icon" data-icon="users"></span><span class="ctrl-label">People</span>
+    <span class="badge-count" id="pending-count" style="display:none;">0</span>
   </button>
   <button class="ctrl-btn notes-toggle" id="btn-notes" title="Class notes">
     <span class="icon" data-icon="notes"></span><span class="ctrl-label">Notes</span>
@@ -122,6 +123,13 @@
 </div>
 {% endif %}
 
+<!-- Waiting room overlay (students, before the teacher admits them) -->
+<div class="waiting-overlay" id="waiting-overlay">
+  <div class="waiting-box">
+    <h3>Waiting for {{ cls.teacher_name }} to let you in…</h3>
+    <p>You'll join automatically as soon as the teacher admits you.</p>
+  </div>
+</div>
 <!-- Class notes side panel -->
 <div class="notes-panel" id="notes-panel">
   <div class="notes-header">
@@ -148,13 +156,17 @@
   </form>
 </div>
 
-<!-- Participants side panel -->
+<!-- Participants side panel (also hosts the waiting-room admit/deny list) -->
 <div class="notes-panel participants-panel" id="participants-panel">
   <div class="notes-header">
     <h3>Participants</h3>
     <button class="notes-close" id="participants-close" data-icon="close"></button>
   </div>
   {% if is_host %}
+  <div class="pending-section" id="pending-section">
+    <div class="pending-heading">Waiting to join</div>
+    <div id="pending-list"></div>
+  </div>
   <div class="participants-toolbar">
     <button class="btn btn-ghost btn-sm" id="btn-mute-all">Mute all</button>
   </div>
