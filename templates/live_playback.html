@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Recording · {{ cls.name }}{% endblock %}
+{% block page_class %}wide{% endblock %}
+
+{% block content %}
+<div class="pb-wrap">
+  <div class="pb-header">
+    <div>
+      <h2>{{ cls.name }} — Live class recording</h2>
+      <div class="pb-meta">Hosted by {{ cls.teacher_name }} · {{ _rel(session.started_at) }}</div>
+    </div>
+    <a href="{{ url_for('class_detail', cid=cls.id) }}" class="btn btn-outline btn-sm">Back to class</a>
+  </div>
+
+  <video controls preload="metadata" class="pb-video">
+    <source src="{{ session.recording_url }}">
+  </video>
+
+  {% if cu and (cu.role in ('teacher','admin','super_admin')) %}
+  <form method="POST" action="{{ url_for('live_class_start', cid=cls.id) }}" style="margin-top:18px;">
+    <button type="submit" class="btn btn-primary">Start a new live class</button>
+  </form>
+  {% endif %}
+</div>
+
+<style>
+  .pb-wrap{max-width:900px;margin:0 auto;padding:8px 0 60px}
+  .pb-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+  .pb-header h2{margin:0 0 4px;font-size:19px}
+  .pb-meta{font-size:13px;color:var(--ink2)}
+  .pb-video{width:100%;max-height:70vh;border-radius:var(--r);background:#000;display:block}
+</style>
+{% endblock %}

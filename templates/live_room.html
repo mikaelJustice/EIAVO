@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}Live · {{ cls.name }}{% endblock %}
+{% block page_class %}live-room-page{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/live_class.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="room-header">
+  <div>
+    <span class="title">{{ cls.name }} — Live Class</span>
+    <span class="code-pill">{{ session.room_code }}</span>
+  </div>
+  <div class="room-header-right">
+    <span class="recording-notice" id="recording-notice" style="display:none;">
+      <span class="rec-dot"></span> Recording
+    </span>
+    <span class="live-dot">Live</span>
+  </div>
+</div>
+
+<div class="room-body">
+  <div class="stage-area" id="stage-area">
+    <!-- Teacher's video: always the large tile in speaker view -->
+    <div class="spotlight-tile" id="spotlight-tile">
+      <div class="avatar-fallback" id="spotlight-avatar">{{ cls.teacher_name[0]|upper }}</div>
+      <div class="tile-label" id="spotlight-label">
+        <span class="host-badge">Teacher</span> {{ cls.teacher_name }}
+      </div>
+    </div>
+
+    <div class="filmstrip-wrap" id="filmstrip-wrap">
+      <div class="filmstrip-label">Students</div>
+      <div class="filmstrip" id="filmstrip">
+        <div class="filmstrip-empty" id="filmstrip-empty">Waiting for others to join…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gallery view: uniform grid, tiles are MOVED here (not cloned) when toggled on -->
+  <div class="gallery-grid" id="gallery-grid" style="display:none;"></div>
+</div>
+
+<!-- Floating reaction toasts -->
+<div class="reaction-toasts" id="reaction-toasts"></div>
+
+<div class="controls-bar">
+  <button class="ctrl-btn" id="btn-mic" title="Mute / unmute">
+    <span class="icon" data-icon="mic"></span><span class="ctrl-label">Mute</span>
+  </button>
+  <button class="ctrl-btn" id="btn-cam" title="Turn camera on / off">
+    <span class="icon" data-icon="video"></span><span class="ctrl-label">Stop video</span>
+  </button>
+  <button class="ctrl-btn" id="btn-screen-share" title="Share your screen">
+    <span class="icon" data-icon="screenShare"></span><span class="ctrl-label">Share</span>
+  </button>
+
+  <div class="bg-picker-wrap">
+    <button class="ctrl-btn" id="btn-background" title="Virtual background">
+      <span class="icon" data-icon="background"></span><span class="ctrl-label">Background</span>
+    </button>
+    <div class="background-menu" id="background-menu">
+      <div class="bg-option selected" data-bg-mode="none">None</div>
+      <div class="bg-option" data-bg-mode="blur">Blur</div>
+      <div class="bg-option" data-bg-mode="image" data-bg-image="https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&q=60">Office</div>
+      <div class="bg-option" data-bg-mode="image" data-bg-image="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&q=60">Sky</div>
+    </div>
+  </div>
+
+  <button class="ctrl-btn" id="btn-hand-raise" title="Raise / lower hand">
+    <span class="icon" data-icon="hand"></span><span class="ctrl-label">Raise hand</span>
+  </button>
+
+  <div class="reaction-picker">
+    <button class="ctrl-btn reaction-btn" data-emoji="👍" title="Thumbs up">👍</button>
+    <button class="ctrl-btn reaction-btn" data-emoji="👏" title="Applause">👏</button>
+    <button class="ctrl-btn reaction-btn" data-emoji="❤️" title="Heart">❤️</button>
+    <button class="ctrl-btn reaction-btn" data-emoji="😂" title="Laugh">😂</button>
+  </div>
+
+  <button class="ctrl-btn" id="btn-view-mode" title="Switch to gallery view">
+    <span class="icon" data-icon="grid"></span><span class="ctrl-label">Layout</span>
+  </button>
+
+  {% if is_host %}
+  <button class="ctrl-btn" id="btn-record" title="Start recording">
+    <span class="icon" data-icon="record"></span><span class="ctrl-label">Record</span>
+  </button>
+  {% endif %}
+
+  <button class="ctrl-btn" id="btn-chat" title="Chat">
+    <span class="icon" data-icon="chat"></span><span class="ctrl-label">Chat</span>
+    <span class="badge-count" id="chat-unread" style="display:none;">0</span>
+  </button>
+  <button class="ctrl-btn" id="btn-participants" title="Participants">
+    <span class="icon" data-icon="users"></span><span class="ctrl-label">People</span>
+    <span class="badge-count" id="pending-count" style="display:none;">0</span>
+  </button>
+  <button class="ctrl-btn notes-toggle" id="btn-notes" title="Class notes">
+    <span class="icon" data-icon="notes"></span><span class="ctrl-label">Notes</span>
+    <span class="badge-count" id="notes-unread" style="display:none;">0</span>
+  </button>
+
+  {% if is_host %}
+    <button class="ctrl-btn leave" id="btn-end-meeting" title="End class for everyone">End class</button>
+  {% else %}
+    <button class="ctrl-btn leave" id="btn-leave" title="Leave class">Leave</button>
+  {% endif %}
+</div>
+
+{% if is_host %}
+<!-- Recording consent — the teacher decides before anything records -->
+<div class="waiting-overlay" id="record-consent-overlay">
+  <div class="waiting-box">
+    <h3>Record this class?</h3>
+    <p>Everyone in the room will see a "Recording" indicator the moment it starts. You can turn it on or off at any time from the Record button. The recording will be available for enrolled students to watch back afterward.</p>
+    <div class="consent-actions">
+      <button class="btn btn-primary btn-sm" id="btn-consent-record">Start recording</button>
+      <button class="btn btn-ghost btn-sm" id="btn-consent-skip">Don't record</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Waiting room overlay (students, before the teacher admits them) -->
+<div class="waiting-overlay" id="waiting-overlay">
+  <div class="waiting-box">
+    <h3>Waiting for {{ cls.teacher_name }} to let you in…</h3>
+    <p>You'll join automatically as soon as the teacher admits you.</p>
+  </div>
+</div>
+
+<!-- Class notes side panel -->
+<div class="notes-panel" id="notes-panel">
+  <div class="notes-header">
+    <h3>Class notes</h3>
+    <button class="notes-close" id="notes-close" data-icon="close"></button>
+  </div>
+  <div class="notes-list" id="notes-list"></div>
+  <form class="notes-form" id="notes-form">
+    <textarea id="notes-input" placeholder="Add a note about this class…"></textarea>
+    <button type="submit" class="btn btn-primary btn-sm">Add note</button>
+  </form>
+</div>
+
+<!-- Chat side panel -->
+<div class="notes-panel chat-panel" id="chat-panel">
+  <div class="notes-header">
+    <h3>Chat</h3>
+    <button class="notes-close" id="chat-close" data-icon="close"></button>
+  </div>
+  <div class="notes-list" id="chat-messages"></div>
+  <form class="notes-form chat-form" id="chat-form">
+    <input type="text" id="chat-input" placeholder="Message everyone…" autocomplete="off" maxlength="2000" />
+    <button type="submit" class="btn btn-primary btn-sm" id="chat-send" title="Send" data-icon="send"></button>
+  </form>
+</div>
+
+<!-- Participants side panel (also hosts the waiting-room admit/deny list) -->
+<div class="notes-panel participants-panel" id="participants-panel">
+  <div class="notes-header">
+    <h3>Participants</h3>
+    <button class="notes-close" id="participants-close" data-icon="close"></button>
+  </div>
+  {% if is_host %}
+  <div class="pending-section" id="pending-section">
+    <div class="pending-heading">Waiting to join</div>
+    <div id="pending-list"></div>
+  </div>
+  <div class="participants-toolbar">
+    <button class="btn btn-ghost btn-sm" id="btn-mute-all">Mute all</button>
+  </div>
+  {% endif %}
+  <div class="notes-list" id="participants-list"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+  window.ROOM_CONFIG = {
+    roomCode: {{ session.room_code|tojson }},
+    isHost: {{ is_host|tojson }},
+    userName: {{ cu.username|tojson }},
+    hostName: {{ cls.teacher_name|tojson }},
+    classUrl: {{ url_for('class_detail', cid=cls.id)|tojson }},
+    endUrl: {{ url_for('live_class_end', cid=cls.id)|tojson }},
+    chunkUploadUrl: {{ url_for('live_class_recording_chunk', cid=cls.id)|tojson }},
+    notesUrl: {{ url_for('live_class_notes', cid=cls.id)|tojson }}
+  };
+</script>
+<script src="{{ url_for('static', filename='js/live/icons.js') }}"></script>
+<script src="{{ url_for('static', filename='js/live/webrtc.js') }}"></script>
+{% if is_host %}
+<script src="{{ url_for('static', filename='js/live/recorder.js') }}"></script>
+{% endif %}
+<!-- Virtual backgrounds (client-side, no server round trip) -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
+<script src="{{ url_for('static', filename='js/live/background.js') }}"></script>
+<script src="{{ url_for('static', filename='js/live/collab.js') }}"></script>
+<script src="{{ url_for('static', filename='js/live/main.js') }}"></script>
+{% endblock %}
