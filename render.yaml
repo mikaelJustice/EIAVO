@@ -5,7 +5,7 @@ services:
     region: frankfurt
     plan: free
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "python init_db.py && gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 --keep-alive 5"
+    startCommand: "python init_db.py && gunicorn app:app --worker-class gthread --workers 1 --threads 20 --bind 0.0.0.0:$PORT --timeout 120 --keep-alive 5"
     envVars:
       - key: SECRET_KEY
         generateValue: true

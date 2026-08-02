@@ -22,6 +22,7 @@ from flask import (
     request, session, jsonify, flash, abort, g
 )
 from werkzeug.utils import secure_filename
+from flask_socketio import SocketIO, join_room, emit as socket_emit
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "mp4", "mov", "webm", "pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "txt"}
@@ -104,6 +105,23 @@ def unhandled_exception(e):
     print("[UNHANDLED]\n" + tb, flush=True)
     return f"<h2>Error: {e}</h2><pre style='font-size:12px;background:#f8f8f8;padding:16px;overflow:auto'>{tb}</pre>", 500
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
+
+# ─── Live Class (ConsultMeet-style video hosting) ─────────────────────────────
+# threading async mode keeps this dependency-light (no eventlet/gevent needed);
+# works fine behind gunicorn's gthread worker class (see Procfile).
+# NOTE: live-class signaling state (_LIVE_CONNECTED / _LIVE_RECORDING,
+# defined further down) lives in plain in-process dicts, so this only works
+# correctly with a single gunicorn worker (--workers 1, already the case here).
+# If this is ever scaled beyond one worker/dyno, that state needs to move to
+# something shared like Redis (flask_socketio.SocketIO(..., message_queue=...)).
+socketio = SocketIO(app, async_mode="threading", cors_allowed_origins="*")
+
+# Where in-progress live-class recordings are buffered (as ~30s chunks) while
+# the call is happening, before being uploaded to Cloudinary once it ends.
+# This is scratch space only — never served directly, and cleaned up on end.
+LIVE_RECORDINGS_DIR = os.environ.get("LIVE_RECORDINGS_DIR", "/tmp/eiavo_live_recordings")
+Path(LIVE_RECORDINGS_DIR).mkdir(parents=True, exist_ok=True)
+
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 # Render gives postgres:// but psycopg2 needs postgresql://
 if DATABASE_URL.startswith("postgres://"):
@@ -678,6 +696,37 @@ def init_db():
         usage_date  TEXT NOT NULL,
         seconds_used INTEGER NOT NULL DEFAULT 0,
         UNIQUE(user_id, usage_date)
+    )""")
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS live_sessions (
+        id            SERIAL PRIMARY KEY,
+        class_id      INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+        host_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        room_code     TEXT    NOT NULL UNIQUE,
+        title         TEXT    NOT NULL DEFAULT '',
+        status        TEXT    NOT NULL DEFAULT 'live',
+        recording_url TEXT    DEFAULT '',
+        started_at    TEXT    NOT NULL,
+        ended_at      TEXT
+    )""")
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS live_session_participants (
+        id            SERIAL PRIMARY KEY,
+        session_id    INTEGER NOT NULL REFERENCES live_sessions(id) ON DELETE CASCADE,
+        user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        joined_at     TEXT    NOT NULL,
+        left_at       TEXT
+    )""")
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS live_session_notes (
+        id            TEXT    PRIMARY KEY,
+        session_id    INTEGER NOT NULL REFERENCES live_sessions(id) ON DELETE CASCADE,
+        author_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        content       TEXT    NOT NULL,
+        created_at    TEXT    NOT NULL
     )""")
 
     migrations = [
@@ -2476,9 +2525,17 @@ def classes():
         )
         cls = dict(cls)
 
+    live_class_ids = set()
+    if my_classes:
+        live_rows = query(
+            "SELECT class_id FROM live_sessions WHERE status='live' AND class_id = ANY(?)",
+            ([c["id"] for c in my_classes],)
+        )
+        live_class_ids = {r["class_id"] for r in live_rows}
+
     return render_template("classes.html", my_classes=my_classes,
                            other_classes=other_classes, YEAR_GROUPS=YEAR_GROUPS,
-                           POST_TYPES=POST_TYPES)
+                           POST_TYPES=POST_TYPES, live_class_ids=live_class_ids)
 
 
 @app.route("/classes/create", methods=["POST"])
@@ -2569,9 +2626,12 @@ def class_detail(cid):
         )
         all_students = [s for s in all_students if s["id"] not in enrolled_ids]
 
+    live_session = _active_live_session(cid)
+
     return render_template("class_detail.html", cls=cls, posts=posts_with_replies,
                            members=members, all_students=all_students,
-                           POST_TYPES=POST_TYPES, YEAR_GROUPS=YEAR_GROUPS)
+                           POST_TYPES=POST_TYPES, YEAR_GROUPS=YEAR_GROUPS,
+                           live_session=live_session)
 
 
 @app.route("/classes/<int:cid>/post", methods=["POST"])
@@ -2756,6 +2816,427 @@ def delete_class_reply(rid):
     cid = reply["class_id"]
     execute("DELETE FROM class_replies WHERE id=?", (rid,))
     return redirect(url_for("class_detail", cid=cid))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  LIVE CLASS  (teacher hosts their class live — video, chat, recording)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _class_or_404(cid):
+    cls = query("SELECT c.*, u.username as teacher_name FROM classes c JOIN users u ON c.teacher_id=u.id WHERE c.id=?", (cid,), one=True)
+    if not cls:
+        abort(404)
+    return cls
+
+
+def _can_host_class(user, cls) -> bool:
+    if user["role"] in ("admin", "super_admin"):
+        return True
+    return user["role"] == "teacher" and cls["teacher_id"] == user["id"]
+
+
+def _is_class_member(user, cls) -> bool:
+    """True if the user is allowed inside this class's live room at all —
+    the host, or an enrolled student, or an admin/super_admin."""
+    if _can_host_class(user, cls):
+        return True
+    if user["role"] != "student":
+        return False
+    row = query("SELECT 1 FROM class_members WHERE class_id=? AND student_id=?", (cls["id"], user["id"]), one=True)
+    return bool(row)
+
+
+def _active_live_session(cid):
+    return query(
+        "SELECT * FROM live_sessions WHERE class_id=? AND status='live' ORDER BY id DESC LIMIT 1",
+        (cid,), one=True
+    )
+
+
+def _latest_live_session(cid):
+    return query(
+        "SELECT * FROM live_sessions WHERE class_id=? ORDER BY id DESC LIMIT 1",
+        (cid,), one=True
+    )
+
+
+def _generate_room_code() -> str:
+    return secrets.token_urlsafe(8).replace("_", "").replace("-", "")[:10]
+
+
+def _live_recording_path(session_id) -> str:
+    return os.path.join(LIVE_RECORDINGS_DIR, f"{session_id}.webm")
+
+
+@app.route("/classes/<int:cid>/live/start", methods=["POST"])
+@login_required
+@roles_required("teacher", "admin", "super_admin")
+def live_class_start(cid):
+    user = current_user()
+    cls  = _class_or_404(cid)
+    if not _can_host_class(user, cls):
+        abort(403)
+
+    existing = _active_live_session(cid)
+    if not existing:
+        room_code = _generate_room_code()
+        # room_code has a UNIQUE constraint — vanishingly unlikely to collide,
+        # but retry once or twice if it somehow does.
+        for _attempt in range(3):
+            row = query("SELECT 1 FROM live_sessions WHERE room_code=?", (room_code,), one=True)
+            if not row:
+                break
+            room_code = _generate_room_code()
+
+        execute(
+            "INSERT INTO live_sessions (class_id, host_id, room_code, title, status, started_at) "
+            "VALUES (?,?,?,?, 'live', ?)",
+            (cid, user["id"], room_code, cls["name"], _now())
+        )
+
+        members = query("SELECT student_id FROM class_members WHERE class_id=?", (cid,))
+        for m in members:
+            push_notif(
+                m["student_id"],
+                f"{user['username']} started a live class for {cls['name']}",
+                url_for("live_class_room", cid=cid),
+                notif_type="live",
+                actor_id=user["id"]
+            )
+
+    return redirect(url_for("live_class_room", cid=cid))
+
+
+@app.route("/classes/<int:cid>/live")
+@login_required
+def live_class_room(cid):
+    user = current_user()
+    cls  = _class_or_404(cid)
+    if not _is_class_member(user, cls):
+        abort(403)
+
+    live_sess = _active_live_session(cid)
+
+    if not live_sess:
+        latest = _latest_live_session(cid)
+        if latest and latest["status"] == "ended" and latest["recording_url"]:
+            return render_template("live_playback.html", cls=cls, session=latest)
+        return render_template(
+            "live_waiting.html", cls=cls,
+            can_host=_can_host_class(user, cls), session=latest
+        )
+
+    is_host = live_sess["host_id"] == user["id"]
+
+    # Record (or refresh) this user's participation, unless they're the host.
+    if not is_host:
+        open_row = query(
+            "SELECT 1 FROM live_session_participants WHERE session_id=? AND user_id=? AND left_at IS NULL",
+            (live_sess["id"], user["id"]), one=True
+        )
+        if not open_row:
+            execute(
+                "INSERT INTO live_session_participants (session_id, user_id, joined_at) VALUES (?,?,?)",
+                (live_sess["id"], user["id"], _now())
+            )
+
+    return render_template("live_room.html", cls=cls, session=live_sess, is_host=is_host)
+
+
+@app.route("/classes/<int:cid>/live/end", methods=["POST"])
+@login_required
+def live_class_end(cid):
+    user = current_user()
+    cls  = _class_or_404(cid)
+    live_sess = _active_live_session(cid)
+    if not live_sess:
+        return jsonify(ok=True, redirect=url_for("class_detail", cid=cid))
+    if live_sess["host_id"] != user["id"] and not _can_host_class(user, cls):
+        abort(403)
+
+    recording_url = ""
+    path = _live_recording_path(live_sess["id"])
+    if os.path.exists(path) and os.path.getsize(path) > 0:
+        try:
+            result = cloudinary.uploader.upload_large(
+                path,
+                folder="eia_voice/live_recordings",
+                resource_type="video",
+                public_id=f"live_{live_sess['id']}_{_uid()}",
+            )
+            recording_url = result.get("secure_url", "")
+        except Exception as e:
+            app.logger.error(f"Live recording upload failed: {e}")
+        finally:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
+    execute(
+        "UPDATE live_sessions SET status='ended', ended_at=?, recording_url=? WHERE id=?",
+        (_now(), recording_url, live_sess["id"])
+    )
+    execute(
+        "UPDATE live_session_participants SET left_at=? WHERE session_id=? AND left_at IS NULL",
+        (_now(), live_sess["id"])
+    )
+
+    socketio.emit("live_class_ended", {}, room=live_sess["room_code"])
+
+    return jsonify(ok=True, redirect=url_for("class_detail", cid=cid))
+
+
+@app.route("/classes/<int:cid>/live/recording/chunk", methods=["POST"])
+@login_required
+def live_class_recording_chunk(cid):
+    user = current_user()
+    live_sess = _active_live_session(cid)
+    if not live_sess or live_sess["host_id"] != user["id"]:
+        abort(403)
+
+    chunk = request.get_data()
+    if chunk:
+        with open(_live_recording_path(live_sess["id"]), "ab") as f:
+            f.write(chunk)
+    return jsonify(ok=True)
+
+
+@app.route("/classes/<int:cid>/live/notes", methods=["GET", "POST"])
+@login_required
+def live_class_notes(cid):
+    user = current_user()
+    cls  = _class_or_404(cid)
+    if not _is_class_member(user, cls):
+        abort(403)
+
+    live_sess = _active_live_session(cid)
+    if not live_sess:
+        return jsonify(notes=[])
+
+    if request.method == "POST":
+        content = request.form.get("content", "").strip()
+        if content:
+            nid = _uid()
+            execute(
+                "INSERT INTO live_session_notes (id, session_id, author_id, content, created_at) VALUES (?,?,?,?,?)",
+                (nid, live_sess["id"], user["id"], content, _now())
+            )
+            socketio.emit(
+                "note_added",
+                {"author": user["username"], "content": content, "created_at": _fmt_time(_now())},
+                room=live_sess["room_code"]
+            )
+
+    notes = query(
+        """SELECT n.*, u.username FROM live_session_notes n
+           JOIN users u ON n.author_id=u.id
+           WHERE n.session_id=? ORDER BY n.created_at ASC""",
+        (live_sess["id"],)
+    )
+    return jsonify(notes=[
+        {"author": n["username"], "content": n["content"], "created_at": _fmt_time(n["created_at"])}
+        for n in notes
+    ])
+
+
+# ─── Live Class — Socket.IO signaling ──────────────────────────────────────────
+# Mirrors a mesh WebRTC signaling setup: the server never touches audio/video,
+# only offers/answers/ICE candidates, plus lightweight room state (chat,
+# reactions, hand-raise, waiting-room admission, recording status).
+
+_LIVE_CONNECTED = {}  # sid -> {"room_code","class_id","session_id","user_id","name","is_host"}
+_LIVE_RECORDING = {}  # room_code -> bool
+
+
+def _live_host_sid_for_room(room_code):
+    return next(
+        (s for s, info in _LIVE_CONNECTED.items() if info["room_code"] == room_code and info["is_host"]),
+        None,
+    )
+
+
+def _live_session_for_room(room_code):
+    return query("SELECT * FROM live_sessions WHERE room_code=? AND status='live'", (room_code,), one=True)
+
+
+@socketio.on("live_request_to_join")
+def live_handle_request_to_join(data):
+    room_code = data.get("room_code")
+    uid = session.get("user_id")
+    if not uid:
+        return
+    live_sess = _live_session_for_room(room_code)
+    if not live_sess:
+        return
+    user = current_user()
+    cls = query("SELECT * FROM classes WHERE id=?", (live_sess["class_id"],), one=True)
+    if not cls or not _is_class_member(user, cls):
+        return
+
+    # Unlike a general-purpose meeting tool, a live class already only lets
+    # verified enrolled members (checked above) request to join in the first
+    # place — so there's no one left to vet, and gating behind a manual
+    # "admit" click just risks the teacher not noticing a request and the
+    # student being stuck staring at a blank waiting screen. Let them straight in.
+    socket_emit("join_approved", {})
+
+
+@socketio.on("live_join")
+def live_handle_join(data):
+    room_code = data.get("room_code")
+    uid = session.get("user_id")
+    if not uid:
+        return
+    live_sess = _live_session_for_room(room_code)
+    if not live_sess:
+        return
+    user = current_user()
+    cls = query("SELECT * FROM classes WHERE id=?", (live_sess["class_id"],), one=True)
+    if not cls or not _is_class_member(user, cls):
+        return
+
+    is_host = live_sess["host_id"] == uid
+    sid = request.sid
+
+    existing_peers = [
+        {"sid": s, "name": info["name"], "is_host": info["is_host"]}
+        for s, info in _LIVE_CONNECTED.items()
+        if info["room_code"] == room_code
+    ]
+
+    _LIVE_CONNECTED[sid] = {
+        "room_code": room_code,
+        "class_id": live_sess["class_id"],
+        "session_id": live_sess["id"],
+        "user_id": uid,
+        "name": user["username"],
+        "is_host": is_host,
+    }
+
+    join_room(room_code)
+
+    socket_emit("existing_peers", {"peers": existing_peers, "recording": _LIVE_RECORDING.get(room_code, False)})
+    socket_emit(
+        "peer_joined",
+        {"sid": sid, "name": user["username"], "is_host": is_host},
+        room=room_code,
+        include_self=False,
+    )
+
+
+@socketio.on("live_signal")
+def live_handle_signal(data):
+    target = data.get("target")
+    if not target:
+        return
+    socket_emit("signal", {"sender": request.sid, "signal": data.get("signal")}, room=target)
+
+
+@socketio.on("live_chat_message")
+def live_handle_chat(data):
+    info = _LIVE_CONNECTED.get(request.sid)
+    if not info:
+        return
+    socket_emit(
+        "chat_message",
+        {"name": info["name"], "message": (data.get("message") or "")[:2000]},
+        room=info["room_code"],
+    )
+
+
+@socketio.on("live_reaction")
+def live_handle_reaction(data):
+    info = _LIVE_CONNECTED.get(request.sid)
+    if not info:
+        return
+    emoji = (data.get("emoji") or "")[:8]
+    if not emoji:
+        return
+    socket_emit("reaction", {"sid": request.sid, "name": info["name"], "emoji": emoji}, room=info["room_code"])
+
+
+@socketio.on("live_hand_raise")
+def live_handle_hand_raise(data):
+    info = _LIVE_CONNECTED.get(request.sid)
+    if not info:
+        return
+    raised = bool(data.get("raised"))
+    socket_emit("hand_raise", {"sid": request.sid, "name": info["name"], "raised": raised}, room=info["room_code"])
+
+
+@socketio.on("live_screen_share")
+def live_handle_screen_share(data):
+    info = _LIVE_CONNECTED.get(request.sid)
+    if not info:
+        return
+    sharing = bool(data.get("sharing"))
+    socket_emit(
+        "screen_share", {"sid": request.sid, "name": info["name"], "sharing": sharing},
+        room=info["room_code"], include_self=False
+    )
+
+
+@socketio.on("live_recording_status")
+def live_handle_recording_status(data):
+    room_code = data.get("room_code")
+    uid = session.get("user_id")
+    if not uid:
+        return
+    live_sess = _live_session_for_room(room_code)
+    if not live_sess or live_sess["host_id"] != uid:
+        return
+    recording = bool(data.get("recording"))
+    _LIVE_RECORDING[room_code] = recording
+    socket_emit("recording_status", {"recording": recording}, room=room_code)
+
+
+@socketio.on("live_host_mute_all")
+def live_handle_mute_all(data):
+    room_code = data.get("room_code")
+    uid = session.get("user_id")
+    if not uid:
+        return
+    live_sess = _live_session_for_room(room_code)
+    if not live_sess or live_sess["host_id"] != uid:
+        return
+    socket_emit("force_mute", {}, room=room_code, include_self=False)
+
+
+@socketio.on("live_host_remove_participant")
+def live_handle_remove_participant(data):
+    room_code = data.get("room_code")
+    target_sid = data.get("sid")
+    uid = session.get("user_id")
+    if not uid or not target_sid:
+        return
+    live_sess = _live_session_for_room(room_code)
+    if not live_sess or live_sess["host_id"] != uid:
+        return
+    socket_emit("removed_by_host", {}, room=target_sid)
+
+
+@socketio.on("disconnect")
+def live_handle_disconnect():
+    sid = request.sid
+
+    info = _LIVE_CONNECTED.pop(sid, None)
+    if not info:
+        return
+
+    room_code = info["room_code"]
+    socket_emit("peer_left", {"sid": sid}, room=room_code)
+
+    if info["is_host"]:
+        _LIVE_RECORDING.pop(room_code, None)
+    else:
+        row = query(
+            "SELECT id FROM live_session_participants WHERE session_id=? AND user_id=? AND left_at IS NULL "
+            "ORDER BY joined_at DESC LIMIT 1",
+            (info["session_id"], info["user_id"]), one=True
+        )
+        if row:
+            execute("UPDATE live_session_participants SET left_at=? WHERE id=?", (_now(), row["id"]))
 
 
 # ─── Entrypoint ───────────────────────────────────────────────────────────────
@@ -3316,7 +3797,7 @@ with app.app_context():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    socketio.run(app, host="0.0.0.0", port=port, debug=False)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
