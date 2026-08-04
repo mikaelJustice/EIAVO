@@ -687,6 +687,7 @@
 
 @media (max-width: 720px) {
   .gallery-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  .reaction-picker { display: none; }
   .background-menu { left: auto; right: 0; transform: none; }
 }
 
