@@ -115,6 +115,12 @@
       </div>
       <span class="class-year-badge" style="background:{{ color }}">{{ cls.year_group }}</span>
     </div>
+    {% if cls.id in live_class_ids %}
+    <div style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--red);margin-top:6px">
+      <span style="width:7px;height:7px;border-radius:50%;background:var(--red);display:inline-block"></span>
+      Live now
+    </div>
+    {% endif %}
     <div class="class-meta">
       <span>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:-2px"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>

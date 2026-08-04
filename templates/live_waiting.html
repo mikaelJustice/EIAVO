@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Live · {{ cls.name }}{% endblock %}
+{% block page_class %}wide{% endblock %}
+
+{% block content %}
+<div class="lw-wrap">
+  <div class="lw-card">
+    {% if can_host %}
+      <div class="lw-icon">🎥</div>
+      <h2>Go live for {{ cls.name }}</h2>
+      <p>Start a live video session — enrolled students will be notified and can join instantly.</p>
+      <form method="POST" action="{{ url_for('live_class_start', cid=cls.id) }}">
+        <button type="submit" class="btn btn-primary">Start live class</button>
+      </form>
+    {% else %}
+      <div class="lw-icon">⏳</div>
+      <h2>Class hasn't started yet</h2>
+      <p>{{ cls.teacher_name }} hasn't gone live for <strong>{{ cls.name }}</strong> right now. This page will refresh automatically — keep it open and you'll join as soon as it starts.</p>
+    {% endif %}
+    <a href="{{ url_for('class_detail', cid=cls.id) }}" class="btn btn-outline" style="margin-top:14px;">Back to {{ cls.name }}</a>
+  </div>
+</div>
+
+<style>
+  .lw-wrap{display:flex;align-items:center;justify-content:center;min-height:60vh;padding:24px}
+  .lw-card{max-width:440px;text-align:center;background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:40px 32px}
+  .lw-icon{font-size:44px;margin-bottom:12px}
+  .lw-card h2{margin:0 0 10px;font-size:20px}
+  .lw-card p{color:var(--ink2);font-size:14px;line-height:1.6;margin:0 0 18px}
+  @media (max-width:480px){
+    .lw-wrap{padding:14px}
+    .lw-card{padding:28px 20px;width:100%}
+    .lw-card .btn{width:100%;display:block;text-align:center}
+    .lw-card form{margin:0}
+  }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+{% if not can_host %}
+<script>
+  // Lightweight poll — cheap on the server, and gets the student into the
+  // room the moment the teacher clicks "Start live class".
+  setInterval(() => { window.location.reload(); }, 15000);
+</script>
+{% endif %}
+{% endblock %}
